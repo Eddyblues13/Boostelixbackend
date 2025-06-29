@@ -35,23 +35,20 @@ class RegisterController extends Controller
                 'success' => true,
                 'message' => 'Registration successful!',
                 'user' => $user,
-                'access_token' => $user->createToken('auth_token')->plainTextToken
+                'token' => $user->createToken('auth_token')->plainTextToken
             ], 201);
-
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation error',
                 'errors' => $e->errors()
             ], 422);
-
         } catch (QueryException $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Database error',
                 'error' => $e->getMessage(),
             ], 500);
-
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
