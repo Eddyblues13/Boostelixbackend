@@ -7,6 +7,7 @@ use App\Http\Controllers\API\LoginController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\Admin\AdminAuthController;
 
 
 
@@ -26,4 +27,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Services endpoint
     Route::get('/services', [ServiceController::class, 'index']);
+});
+
+
+
+Route::prefix('admin')->group(function () {
+    Route::post('/login', [AdminAuthController::class, 'login']);
+
+    Route::middleware(['auth:sanctum', 'admin.token'])->group(function () {
+        Route::post('/logout', [AdminAuthController::class, 'logout']);
+        Route::get('/me', [AdminAuthController::class, 'me']);
+    });
 });
