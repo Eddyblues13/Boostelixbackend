@@ -22,6 +22,7 @@ Route::post('/login', [LoginController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     // User routes
     Route::get('/user', [UserController::class, 'user']);
+    Route::get('/user/logout', [UserController::class, 'logout']);
     // Categories endpoint
     Route::get('/categories', [CategoryController::class, 'index']);
 

@@ -22,4 +22,14 @@ class UserController extends Controller
             'updated_at' => $user->updated_at->toDateTimeString(),
         ]);
     }
+
+    public function logout(Request $request)
+    {
+        // Revoke the current access token
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Logged out successfully'
+        ]);
+    }
 }
