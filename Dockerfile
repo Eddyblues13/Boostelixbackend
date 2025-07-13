@@ -1,30 +1,31 @@
+# Use official PHP 8.2 CLI image (Debian Bookworm-based)
 FROM php:8.2-cli
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Install system dependencies and PHP extensions
+# Install system dependencies and PHP extensions needed by Laravel 12
 RUN apt-get update && apt-get install -y \
-    git unzip zip curl libpng-dev libonig-dev libxml2-dev libzip-dev \
-    libjpeg-dev libfreetype6-dev libpq-dev libcurl4-openssl-dev \
+    git unzip zip curl libpng-dev libonig-dev libxml2-dev libzip-dev libjpeg-dev libfreetype6-dev libpq-dev libcurl4-openssl-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo pdo_mysql mbstring zip exif pcntl bcmath gd
+    && docker-php-ext-install pdo pdo_mysql mbstring zip exif pcntl bcmath gd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Composer globally
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy app source
+# Copy application code
 COPY . .
 
-# Install PHP dependencies
-RUN composer install --optimize-autoloader --no-dev
+# Install PHP dependencies optimized for production
+RUN composer install --no-dev --optimize-autoloader
 
-# Set appropriate permissions (especially for Laravel)
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
+# Set permissions (important for Laravel)
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Expose port 8080 (required for Railway)
+# Expose port 8080 (Railway default HTTP port)
 EXPOSE 8080
 
-# Start Laravel with PHP's built-in web server
+# Start Laravel’s built-in server binding to 0.0.0.0:8080
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]
