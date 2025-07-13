@@ -3,9 +3,10 @@
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return response()->json([
-        'success' => true,
-        'message' => 'Failed to deactivate services',
+    return view('welcome');
+});
 
-    ], 200);
+
+Route::get('/test', function () {
+    return 'Laravel is working!';
 });
