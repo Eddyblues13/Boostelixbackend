@@ -1,8 +1,10 @@
 {
+  "name": "boostelixbackend",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"php artisan serve --host=0.0.0.0 --port=8080\" \"vite\""
+    "postinstall": "composer install --no-dev --optimize-autoloader",
+    "start": "php artisan serve --host=0.0.0.0 --port=8080"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
