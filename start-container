@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Set correct permissions
+chown -R sail:sail storage bootstrap/cache || true
+chmod -R 775 storage bootstrap/cache || true
+
+# Start Supervisor to run artisan server
+exec /usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf
