@@ -24,8 +24,8 @@ RUN composer install --no-dev --optimize-autoloader
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Expose port 8080 (Railway default HTTP port)
-EXPOSE 8080
+# Expose port 9000 (Railway default HTTP port)
+EXPOSE 9000
 
-# Start Laravel’s built-in server binding to 0.0.0.0:8080
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080"]
+# Start Laravel’s built-in server binding to 0.0.0.0:9000
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=9000"]
