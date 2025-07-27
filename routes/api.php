@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\Admin\ManageCategoryController;
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
 
+Route::get('/all-services', [ServiceController::class, 'allServices']);
+
 
 
 

@@ -26,6 +26,9 @@ class ServiceController extends Controller
                 'category_id',
                 'min_amount',
                 'max_amount',
+                'average_time',
+                'description',
+                'rate_per_1000',
                 'price',
                 'description'
             ]);
@@ -38,6 +41,23 @@ class ServiceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load services'
+            ], 500);
+        }
+    }
+
+    public function allServices(): JsonResponse
+    {
+        try {
+            $services = Service::get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $services
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load categories'
             ], 500);
         }
     }
