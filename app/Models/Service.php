@@ -32,7 +32,6 @@ class Service extends Model
         'drip_feed',
         'refill',
         'is_refill_automatic',
-        'description'
     ];
 
     public $timestamps = false;
