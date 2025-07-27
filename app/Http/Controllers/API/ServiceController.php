@@ -26,6 +26,9 @@ class ServiceController extends Controller
                 'category_id',
                 'min_amount',
                 'max_amount',
+                'average_time',
+                'description',
+                'rate_per_1000',
                 'price',
                 'description'
             ]);

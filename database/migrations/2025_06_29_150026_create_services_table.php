@@ -29,6 +29,10 @@ return new class extends Migration
             $table->double('price_percentage_increase', 8, 2)->default(1.00);
             $table->tinyInteger('service_status')->nullable();
             $table->string('service_type', 191)->nullable();
+            $table->string('description', 255)->nullable();
+            $table->string('rate_per_1000', 255)->nullable();
+            $table->string('average_time', 255)->nullable();
+            
 
             // API Provider relationship
             $table->foreignId('api_provider_id')
