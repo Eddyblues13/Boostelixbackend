@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('first_name')->nullable(); // Nullable first name
             $table->string('last_name')->nullable();
             $table->string('username')->unique();
+            $table->decimal('balance', 15, 2)->default(0.00);
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');

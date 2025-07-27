@@ -9,25 +9,9 @@ class Order extends Model
 {
     use HasFactory;
 
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
     protected $table = 'orders';
-
-    /**
-     * The primary key for the model.
-     *
-     * @var string
-     */
     protected $primaryKey = 'id';
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array
-     */
     protected $fillable = [
         'user_id',
         'category_id',
@@ -49,13 +33,12 @@ class Order extends Model
         'drip_feed',
         'refilled_at',
         'added_on',
+        'start_time',
+        'speed',
+        'avg_time',
+        'guarantee'
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array
-     */
     protected $casts = [
         'price' => 'decimal:8',
         'agree' => 'boolean',
@@ -68,27 +51,39 @@ class Order extends Model
         'updated_at' => 'datetime',
     ];
 
-    /**
-     * Get the user that owns the order.
-     */
+    // Status constants
+    const STATUS_PROCESSING = 'processing';
+    const STATUS_IN_PROGRESS = 'in-progress';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_PARTIAL = 'partial';
+    const STATUS_CANCELLED = 'cancelled';
+    const STATUS_REFUNDED = 'refunded';
+
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Get the category associated with the order.
-     */
     public function category()
     {
         return $this->belongsTo(Category::class);
     }
 
-    /**
-     * Get the service associated with the order.
-     */
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    /**
+     * Get the service metrics as an array
+     */
+    public function getMetricsAttribute()
+    {
+        return [
+            'start_time' => $this->start_time ?? '5-30 minutes',
+            'speed' => $this->speed ?? '100-1000/hour',
+            'avg_time' => $this->avg_time ?? '7 hours 43 minutes',
+            'guarantee' => $this->guarantee ?? '30 days'
+        ];
     }
 }

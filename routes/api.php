@@ -12,9 +12,7 @@ use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageCategoryController;
-
-
-
+use App\Http\Controllers\API\OrderController;
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
@@ -32,6 +30,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Services endpoint
     Route::get('/services', [ServiceController::class, 'index']);
+
+    // orders endpoint
+    Route::post('/orders', [OrderController::class, 'store']);
 });
 
 
@@ -51,7 +52,7 @@ Route::prefix('admin')->group(function () {
         Route::post('/categories/{id}/activate', [ManageCategoryController::class, 'activate']);
         Route::post('/categories/{id}/deactivate', [ManageCategoryController::class, 'deactivate']);
         Route::post('/categories/deactivate-multiple', [ManageCategoryController::class, 'deactivateMultiple']);
-        
+
         // Service management
         Route::post('/services', [ManageServiceController::class, 'store']);
         Route::put('/services/{id}', [ManageServiceController::class, 'update']);
@@ -87,17 +88,16 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin'])->group(funct
     Route::post('/{id}/generate-api-key', [ManageUserController::class, 'generateApiKey']);
     Route::post('/{id}/send-email', [ManageUserController::class, 'sendUserEmail']);
     Route::post('/send-bulk-email', [ManageUserController::class, 'sendBulkEmail']);
-    
+
     // Order management
     Route::get('/{id}/orders', [ManageUserController::class, 'getUserOrders']);
     Route::post('/{id}/orders', [ManageUserController::class, 'createUserOrder']);
     Route::put('/{userId}/orders/{orderId}', [ManageUserController::class, 'updateUserOrder']);
     Route::delete('/{userId}/orders/{orderId}', [ManageUserController::class, 'deleteUserOrder']);
-    
+
     // Transaction management
     Route::get('/{id}/transactions', [ManageUserController::class, 'getUserTransactions']);
     Route::post('/{id}/transactions', [ManageUserController::class, 'createUserTransaction']);
     Route::put('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'updateUserTransaction']);
     Route::delete('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'deleteUserTransaction']);
 });
-

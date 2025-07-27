@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\UserServiceRate;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Service extends Model
 {
@@ -57,19 +58,21 @@ class Service extends Model
         return $this->belongsTo(ApiProvider::class, 'api_provider_id', 'id');
     }
 
-    // public function orders()
-    // {
-    //     return $this->hasMany(Order::class, 'service_id', 'id');
-    // }
+    public function orders()
+    {
+        return $this->hasMany(Order::class, 'service_id', 'id');
+    }
 
-    // protected function scopeUserRate($query)
-    // {
-    //     $query->addSelect([
-    //         'user_rate' => UserServiceRate::select('price')
-    //             ->whereColumn('service_id', 'services.id')
-    //             ->where('user_id', auth()->id())
-    //     ]);
-    // }
+    protected function scopeUserRate($query)
+    {
+        $query->addSelect([
+            'user_rate' => UserServiceRate::select('price')
+                ->whereColumn('service_id', 'services.id')
+                ->where('user_id', auth()->id())
+        ]);
+    }
+
+
 
     public function getProviderNameAttribute($value)
     {
