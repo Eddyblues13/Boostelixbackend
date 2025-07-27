@@ -4,15 +4,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\LoginController;
+use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageCategoryController;
-use App\Http\Controllers\API\OrderController;
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
@@ -46,6 +47,7 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['auth:sanctum', 'admin.token'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
+        Route::get('dashboard', [AdminController::class, 'dashboard']);
 
         // Category management
         Route::post('/categories', [ManageCategoryController::class, 'store']);
