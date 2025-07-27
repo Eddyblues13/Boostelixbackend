@@ -41,4 +41,21 @@ class ServiceController extends Controller
             ], 500);
         }
     }
+
+    public function allServices(): JsonResponse
+    {
+        try {
+            $services = Service::get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $services
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to load categories'
+            ], 500);
+        }
+    }
 }
