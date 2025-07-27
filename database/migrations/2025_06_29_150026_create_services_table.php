@@ -29,7 +29,7 @@ return new class extends Migration
             $table->double('price_percentage_increase', 8, 2)->default(1.00);
             $table->tinyInteger('service_status')->nullable();
             $table->string('service_type', 191)->nullable();
-            $table->string('description', 255)->nullable();
+            $table->longText('description')->nullable();
             $table->string('rate_per_1000', 255)->nullable();
             $table->string('average_time', 255)->nullable();
             
@@ -46,8 +46,6 @@ return new class extends Migration
             $table->boolean('drip_feed')->nullable();
             $table->boolean('refill')->default(0);
             $table->boolean('is_refill_automatic')->default(0);
-
-            $table->longText('description')->nullable();
 
             // Indexes
             $table->index('category_id');

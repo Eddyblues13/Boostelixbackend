@@ -30,7 +30,6 @@ class ServiceController extends Controller
                 'description',
                 'rate_per_1000',
                 'price',
-                'description'
             ]);
 
             return response()->json([
