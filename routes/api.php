@@ -66,13 +66,26 @@ Route::prefix('admin')->group(function () {
         Route::post('/services/deactivate-multiple', [ManageServiceController::class, 'deactivateMultiple']);
 
         // api providers
-        Route::get('/api-providers', [ApiProviderController::class, 'index']);
-        Route::post('/api-providers', [ApiProviderController::class, 'store']);
-        Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
-        Route::post('/services/import', [ApiProviderController::class, 'import']);
-        Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
+        Route::prefix('providers')->group(function () {
+            Route::get('/', [ApiProviderController::class, 'index']);
+            Route::post('/', [ApiProviderController::class, 'store']);
+            Route::get('/{id}', [ApiProviderController::class, 'show']);
+            Route::put('/{id}', [ApiProviderController::class, 'update']);
+            Route::delete('/{id}', [ApiProviderController::class, 'destroy']);
+            Route::patch('/{id}/status', [ApiProviderController::class, 'updateStatus']);
+
+            // Route::get('/api-providers', [ApiProviderController::class, 'index']);
+            // Route::post('/api-providers', [ApiProviderController::class, 'store']);
+            // Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
+            Route::post('/services/import', [ApiProviderController::class, 'import']);
+            Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
+        });
     });
 });
+
+
+
+
 
 
 
