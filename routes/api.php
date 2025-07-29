@@ -67,12 +67,9 @@ Route::prefix('admin')->group(function () {
 
         // api providers
         Route::prefix('providers')->group(function () {
-            Route::get('/', [ApiProviderController::class, 'index']);
-            Route::post('/', [ApiProviderController::class, 'store']);
-            Route::get('/{id}', [ApiProviderController::class, 'show']);
-            Route::put('/{id}', [ApiProviderController::class, 'update']);
-            Route::delete('/{id}', [ApiProviderController::class, 'destroy']);
-            Route::patch('/{id}/status', [ApiProviderController::class, 'updateStatus']);
+            Route::apiResource('/', ApiProviderController::class);
+            Route::patch('/{id}/toggle-status', [ApiProviderController::class, 'toggleStatus']);
+            Route::post('/{id}/sync-services', [ApiProviderController::class, 'syncServices']);
 
             // Route::get('/api-providers', [ApiProviderController::class, 'index']);
             // Route::post('/api-providers', [ApiProviderController::class, 'store']);
@@ -91,20 +88,17 @@ Route::prefix('admin')->group(function () {
 
 
 
-Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin'])->group(function () {
+Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group(function () {
+
     // User management
     Route::get('/', [ManageUserController::class, 'index']);
     Route::get('/{id}', [ManageUserController::class, 'show']);
-    Route::put('/{id}', [ManageUserController::class, 'update']);
-    Route::post('/{id}/login', [ManageUserController::class, 'loginAsUser']);
-    Route::post('/{id}/add-balance', [ManageUserController::class, 'addBalance']);
-    Route::post('/{id}/reduce-balance', [ManageUserController::class, 'reduceBalance']);
-    Route::post('/{id}/activate', [ManageUserController::class, 'activate']);
-    Route::post('/{id}/deactivate', [ManageUserController::class, 'deactivate']);
-    Route::post('/{id}/change-status', [ManageUserController::class, 'changeStatus']);
-    Route::post('/{id}/generate-api-key', [ManageUserController::class, 'generateApiKey']);
-    Route::post('/{id}/send-email', [ManageUserController::class, 'sendUserEmail']);
-    Route::post('/send-bulk-email', [ManageUserController::class, 'sendBulkEmail']);
+    Route::post('/{id}/send-email', [ManageUserController::class, 'sendEmail']);
+    Route::post('/balance-adjust', [ManageUserController::class, 'adjust']);
+    Route::post('/{id}/adjust-balance', [ManageUserController::class, 'adjustBalance']);
+    Route::post('/{id}/custom-rate', [ManageUserController::class, 'setCustomRate']);
+
+
 
     // Order management
     Route::get('/{id}/orders', [ManageUserController::class, 'getUserOrders']);

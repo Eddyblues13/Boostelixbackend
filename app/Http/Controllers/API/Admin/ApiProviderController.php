@@ -14,75 +14,118 @@ use Illuminate\Support\Facades\Validator;
 class ApiProviderController extends Controller
 {
 
-
-
-
     public function index()
     {
-        $providers = ApiProvider::with(['services'])->get();
-        return response()->json($providers);
+        $providers = ApiProvider::all();
+        return response()->json([
+            'status' => 'success',
+            'data' => $providers
+        ]);
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'api_name' => 'required|string|max:255',
-            'url' => 'required|url|max:255',
-            'api_key' => 'required|string|max:255',
-            'balance' => 'required|numeric|min:0',
-            'currency' => 'required|string|size:3',
-            'convention_rate' => 'required|numeric|min:0.01',
+            'url' => 'required|url',
+            'api_key' => 'required|string',
+            'balance' => 'nullable|numeric',
+            'currency' => 'required|string|in:USD,EUR,GBP,NGN',
+            'convention_rate' => 'required|numeric',
             'status' => 'required|boolean',
             'description' => 'nullable|string',
         ]);
 
-        $provider = ApiProvider::create($validated);
-        return response()->json($provider, 201);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $provider = ApiProvider::create($validator->validated());
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $provider
+        ], 201);
     }
 
     public function show($id)
     {
-        $provider = ApiProvider::with(['services', 'logs'])->findOrFail($id);
-        return response()->json($provider);
+        $provider = ApiProvider::withCount('services')->findOrFail($id);
+        return response()->json([
+            'status' => 'success',
+            'data' => $provider
+        ]);
     }
 
     public function update(Request $request, $id)
     {
         $provider = ApiProvider::findOrFail($id);
 
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'api_name' => 'sometimes|string|max:255',
-            'url' => 'sometimes|url|max:255',
-            'api_key' => 'sometimes|string|max:255',
-            'balance' => 'sometimes|numeric|min:0',
-            'currency' => 'sometimes|string|size:3',
-            'convention_rate' => 'sometimes|numeric|min:0.01',
+            'url' => 'sometimes|url',
+            'api_key' => 'sometimes|string',
+            'balance' => 'nullable|numeric',
+            'currency' => 'sometimes|string|in:USD,EUR,GBP,NGN',
+            'convention_rate' => 'sometimes|numeric',
             'status' => 'sometimes|boolean',
             'description' => 'nullable|string',
         ]);
 
-        $provider->update($validated);
-        return response()->json($provider);
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $provider->update($validator->validated());
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $provider
+        ]);
     }
 
     public function destroy($id)
     {
         $provider = ApiProvider::findOrFail($id);
         $provider->delete();
-        return response()->json(null, 204);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'API Provider deleted successfully'
+        ]);
     }
 
-    public function updateStatus(Request $request, $id)
+    public function toggleStatus($id)
+    {
+        $provider = ApiProvider::findOrFail($id);
+        $provider->update(['status' => !$provider->status]);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $provider
+        ]);
+    }
+
+    public function syncServices($id)
     {
         $provider = ApiProvider::findOrFail($id);
 
-        $validated = $request->validate([
-            'status' => 'required|boolean',
-        ]);
+        // Implement your service synchronization logic here
+        // This would typically call the provider's API to get their services
 
-        $provider->update(['status' => $validated['status']]);
-        return response()->json($provider);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Services synchronization initiated',
+            'data' => $provider
+        ]);
     }
+
     // public function index()
     // {
     //     $providers = ApiProvider::all();
