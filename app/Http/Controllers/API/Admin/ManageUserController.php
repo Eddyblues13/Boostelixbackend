@@ -2,64 +2,261 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
-use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Models\Order;
 use App\Models\Transaction;
-use App\Models\User;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use App\Mail\UserNotification;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
-use App\Mail\UserNotification;
+use Illuminate\Support\Facades\Validator;
 
 class ManageUserController extends Controller
 {
-    /**
-     * Display a listing of all users.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+
+    public function index(Request $request)
+    {
+        // Optional filter by name or email
+        $query = User::query();
+
+        if ($request->has('search')) {
+            $search = $request->input('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+
+        // Paginate results (default: 10 per page)
+        $users = $query->paginate($request->input('per_page', 10));
+
+        return response()->json($users);
+    }
+
+
+    public function show($id)
     {
         try {
-            $users = User::with(['orders', 'transactions'])->latest()->get();
+            $user = User::findOrFail($id); // throws ModelNotFoundException if not found
+
             return response()->json([
-                'success' => true,
-                'message' => 'Users retrieved successfully',
-                'data' => $users
+                'status' => 'success',
+                'message' => 'User retrieved successfully',
+                'data' => $user
             ], 200);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'User not found'
+            ], 404);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve users',
+                'status' => 'error',
+                'message' => 'Something went wrong',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
 
-    /**
-     * Display the specified user.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
+
+
+
+
+    public function sendEmail(Request $request, $id)
     {
         try {
-            $user = User::with(['orders', 'transactions'])->findOrFail($id);
+            $request->validate([
+                'subject' => 'required|string|max:255',
+                'message' => 'required|string',
+            ]);
+
+            $user = User::findOrFail($id);
+
+            Mail::raw($request->message, function ($mail) use ($user, $request) {
+                $mail->to($user->email)
+                    ->subject($request->subject);
+            });
+
             return response()->json([
-                'success' => true,
-                'message' => 'User retrieved successfully',
-                'data' => $user
+                'status' => 'success',
+                'message' => 'Email sent successfully to ' . $user->email,
             ], 200);
-        } catch (\Exception $e) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'User not found',
-                'error' => $e->getMessage()
-            ], 404);
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Email sending failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to send email.',
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
+
+
+
+    public function adjustBalance(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'action' => 'required|in:add,subtract',
+                'amount' => 'required|numeric|min:0.01',
+                'notes' => 'nullable|string|max:1000',
+            ]);
+
+            $user = User::findOrFail($id);
+
+            DB::beginTransaction();
+
+            if ($request->action === 'add') {
+                $user->balance += $request->amount;
+            } elseif ($request->action === 'subtract') {
+                if ($user->balance < $request->amount) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Insufficient balance for subtraction.',
+                    ], 422);
+                }
+                $user->balance -= $request->amount;
+            }
+
+            $user->save();
+
+            // Optionally log the transaction
+            DB::table('balance_logs')->insert([
+                'user_id' => $user->id,
+                'action' => $request->action,
+                'amount' => $request->amount,
+                'notes' => $request->notes,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Balance adjusted successfully.',
+                'balance' => $user->balance,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Balance adjustment failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Something went wrong during balance adjustment.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function setCustomRate(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'service' => 'required|string|max:255',
+                'rate' => 'required|numeric|min:0',
+                'type' => 'required|in:percentage,fixed',
+            ]);
+
+            $user = User::findOrFail($id);
+
+            // Save custom rate to a custom_rates table (or however your schema is)
+            DB::table('custom_rates')->updateOrInsert(
+                ['user_id' => $user->id, 'service' => $request->service],
+                [
+                    'rate' => $request->rate,
+                    'type' => $request->type,
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ]
+            );
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Custom rate set successfully.',
+            ], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Custom rate setting failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Something went wrong while setting custom rate.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function adjust(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'amount' => 'required|numeric|min:0.01',
+            'type' => 'required|in:add,subtract',
+            'note' => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $user = User::findOrFail($request->user_id);
+        $amount = $request->amount;
+
+        if ($request->type === 'subtract' && $user->balance < $amount) {
+            return response()->json([
+                'message' => 'Insufficient balance to subtract the specified amount.',
+            ], 400);
+        }
+
+        $user->balance = $request->type === 'add'
+            ? $user->balance + $amount
+            : $user->balance - $amount;
+
+        $user->save();
+
+        // Optionally log adjustment
+        // BalanceAdjustment::create([...]);
+
+        return response()->json([
+            'message' => 'Balance successfully adjusted.',
+            'new_balance' => $user->balance,
+        ]);
+    }
+
+
+
+
+
+
+
+
+
+
+
 
     /**
      * Update the specified user in storage.
