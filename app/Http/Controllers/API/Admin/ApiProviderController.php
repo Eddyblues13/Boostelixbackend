@@ -371,7 +371,7 @@ class ApiProviderController extends Controller
                     'max_amount' => intval($apiService['max'] ?? 0),
                     'average_time' => $apiService['average_time'] ?? $apiService['time'] ?? null,
                     'description' => $apiService['desc'] ?? $apiService['description'] ?? null,
-                    'rate_per_1000' => min(floatval($apiService['rate_per_1000'] ?? $baseRate), $maxPrice),
+                    'rate_per_1000' => min(floatval($apiService['rate'] ?? $baseRate), $maxPrice),
                     'price' => $final_price,
                     'price_percentage_increase' => $percentageIncrease,
                     'service_status' => 1,
