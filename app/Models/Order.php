@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Order extends Model
 {
@@ -59,20 +60,8 @@ class Order extends Model
     const STATUS_CANCELLED = 'cancelled';
     const STATUS_REFUNDED = 'refunded';
 
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
 
-    public function category()
-    {
-        return $this->belongsTo(Category::class);
-    }
 
-    public function service()
-    {
-        return $this->belongsTo(Service::class);
-    }
 
     /**
      * Get the service metrics as an array
@@ -85,5 +74,21 @@ class Order extends Model
             'avg_time' => $this->avg_time ?? '7 hours 43 minutes',
             'guarantee' => $this->guarantee ?? '30 days'
         ];
+    }
+
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class);
     }
 }
