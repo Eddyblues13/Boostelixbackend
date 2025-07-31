@@ -250,6 +250,30 @@ class ManageUserController extends Controller
 
 
 
+    public function getUserOrders($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            $orders = $user->orders()->with(['category', 'service'])->latest()->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User orders retrieved successfully',
+                'data' => $orders
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve user orders',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+
+
 
 
 
@@ -633,57 +657,8 @@ class ManageUserController extends Controller
         }
     }
 
-    /**
-     * Get all orders for a specific user.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function getUserOrders($id)
-    {
-        try {
-            $user = User::findOrFail($id);
-            $orders = $user->orders()->with(['category', 'service'])->latest()->get();
 
-            return response()->json([
-                'success' => true,
-                'message' => 'User orders retrieved successfully',
-                'data' => $orders
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve user orders',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get all transactions for a specific user.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function getUserTransactions($id)
-    {
-        try {
-            $user = User::findOrFail($id);
-            $transactions = $user->transactions()->latest()->get();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'User transactions retrieved successfully',
-                'data' => $transactions
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve user transactions',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
+ 
 
     /**
      * Create a new order for a user.
