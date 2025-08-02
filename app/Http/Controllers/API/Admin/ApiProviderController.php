@@ -456,4 +456,52 @@ class ApiProviderController extends Controller
             ], 500);
         }
     }
+
+    public function importServices(Request $request)
+    {
+        $request->validate([
+            'api_provider_id' => 'required|exists:api_providers,id',
+            'services' => 'required|array',
+        ]);
+
+        $provider = ApiProvider::findOrFail($request->api_provider_id);
+
+        foreach ($request->services as $service) {
+            // Create or find the category
+            $category = Category::firstOrCreate(
+                ['category_title' => $service['category'] ?? 'Uncategorized'],
+                ['category_description' => $service['category'] ?? 'Uncategorized'],
+                ['status' => 1]
+            );
+
+            $exists = Service::where('api_service_id', $service['service'])
+                ->where('api_provider_id', $provider->id)
+                ->exists();
+
+            if (!$exists) {
+                Service::create([
+                    'category_id' => $category->id,
+                    'service_title' => $service['name'] ?? '',
+                    'min_amount' => $service['min'] ?? 0,
+                    'max_amount' => $service['max'] ?? 0,
+                    'average_time' => $service['average_time'] ?? null,
+                    'rate_per_1000' => $service['rate'] ?? 0,
+                    'api_service_id' => $service['service'],
+                    'api_provider_id' => $provider->id,
+                    'api_provider_price' => $service['rate'] ?? 0,
+                    'service_status' => 1,
+                    'service_type' => $service['type'] ?? 'default',
+                    'refill' => isset($service['refill']) ? (bool) $service['refill'] : false,
+                    'drip_feed' => isset($service['dripfeed']) ? (int) $service['dripfeed'] : 0,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Selected services imported successfully.'
+        ]);
+    }
+
+
 }

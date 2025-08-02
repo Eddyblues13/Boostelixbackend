@@ -47,7 +47,7 @@ class ServiceController extends Controller
     public function allServices(): JsonResponse
     {
         try {
-            $services = Service::get();
+            $services = Service::with(['category', 'provider'])->get();
 
             return response()->json([
                 'success' => true,
