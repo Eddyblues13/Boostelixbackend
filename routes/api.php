@@ -119,6 +119,8 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     Route::patch('/orders/{id}/status', [ManageOrderController::class, 'updateStatus']);
     Route::get('/categories', [ManageOrderController::class, 'getUserCategories']);
     Route::get('/services', [ManageOrderController::class, 'getUserServices']);
+    Route::get('/orders', [ManageOrderController::class, 'allOrders']);
+
 
 
     // Transaction management

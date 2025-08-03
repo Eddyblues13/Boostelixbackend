@@ -8,6 +8,7 @@ use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 
 class ManageOrderController extends Controller
 {
@@ -78,5 +79,23 @@ class ManageOrderController extends Controller
             'success' => true,
             'data' => $services
         ]);
+    }
+
+    public function allOrders(): JsonResponse
+    {
+        try {
+            $orders = Order::with('user')->get();
+
+            return response()->json([
+                'success' => true,
+                'data'    => $orders,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch orders',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
     }
 }
