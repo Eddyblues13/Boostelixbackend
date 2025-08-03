@@ -14,6 +14,10 @@ class CreateTicketsTable extends Migration
             $table->string('name', 91)->nullable();
             $table->string('email', 91)->nullable();
             $table->string('ticket', 191)->nullable();
+            $table->string('category_id', 191)->nullable();
+            $table->string('order_ids', 191)->nullable();
+            $table->string('request_type', 191)->nullable();
+            $table->longText('message')->nullable();
             $table->string('subject', 191)->nullable();
             $table->tinyInteger('status')->default(0)->comment('0: Open, 1: Answered, 2: Replied, 3: Closed');
             $table->dateTime('last_reply')->nullable();

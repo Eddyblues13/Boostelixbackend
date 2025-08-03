@@ -255,6 +255,56 @@ class ApiProviderController extends Controller
     //     }
     // }
 
+    public function fetchAllServicesFromProvider(Request $request)
+    {
+        // Validate provider input
+        $validator = Validator::make($request->all(), [
+            'provider' => 'required|integer|exists:api_providers,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+
+        // Get provider record
+        $provider = ApiProvider::find($request->provider);
+
+        try {
+            // Call the provider's service API
+            $response = Http::asForm()->post($provider->url, [
+                'key' => $provider->api_key,
+                'action' => 'services'
+            ]);
+
+            // If the API call fails or is not 200
+            if (!$response->successful()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to fetch services from provider.'
+                ], 502);
+            }
+
+            $services = $response->json();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Services fetched successfully.',
+                'data' => $services
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'An error occurred while fetching services.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
 
 
 
@@ -371,7 +421,7 @@ class ApiProviderController extends Controller
                     'max_amount' => intval($apiService['max'] ?? 0),
                     'average_time' => $apiService['average_time'] ?? $apiService['time'] ?? null,
                     'description' => $apiService['desc'] ?? $apiService['description'] ?? null,
-                    'rate_per_1000' => min(floatval($apiService['rate_per_1000'] ?? $baseRate), $maxPrice),
+                    'rate_per_1000' => min(floatval($apiService['rate'] ?? $baseRate), $maxPrice),
                     'price' => $final_price,
                     'price_percentage_increase' => $percentageIncrease,
                     'service_status' => 1,
@@ -406,4 +456,52 @@ class ApiProviderController extends Controller
             ], 500);
         }
     }
+
+    public function importServices(Request $request)
+    {
+        $request->validate([
+            'api_provider_id' => 'required|exists:api_providers,id',
+            'services' => 'required|array',
+        ]);
+
+        $provider = ApiProvider::findOrFail($request->api_provider_id);
+
+        foreach ($request->services as $service) {
+            // Create or find the category
+            $category = Category::firstOrCreate(
+                ['category_title' => $service['category'] ?? 'Uncategorized'],
+                ['category_description' => $service['category'] ?? 'Uncategorized'],
+                ['status' => 1]
+            );
+
+            $exists = Service::where('api_service_id', $service['service'])
+                ->where('api_provider_id', $provider->id)
+                ->exists();
+
+            if (!$exists) {
+                Service::create([
+                    'category_id' => $category->id,
+                    'service_title' => $service['name'] ?? '',
+                    'min_amount' => $service['min'] ?? 0,
+                    'max_amount' => $service['max'] ?? 0,
+                    'average_time' => $service['average_time'] ?? null,
+                    'rate_per_1000' => $service['rate'] ?? 0,
+                    'api_service_id' => $service['service'],
+                    'api_provider_id' => $provider->id,
+                    'api_provider_price' => $service['rate'] ?? 0,
+                    'service_status' => 1,
+                    'service_type' => $service['type'] ?? 'default',
+                    'refill' => isset($service['refill']) ? (bool) $service['refill'] : false,
+                    'drip_feed' => isset($service['dripfeed']) ? (int) $service['dripfeed'] : 0,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Selected services imported successfully.'
+        ]);
+    }
+
+
 }

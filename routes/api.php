@@ -11,12 +11,15 @@ use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
-use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
+use App\Http\Controllers\Api\Admin\ManageUserController;
+use App\Http\Controllers\Api\TicketController;
+
+
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
@@ -94,11 +97,13 @@ Route::prefix('admin')->group(function () {
             Route::patch('/{id}/toggle-status', [ApiProviderController::class, 'toggleStatus']);
             Route::post('/{id}/sync-services', [ApiProviderController::class, 'syncServices']);
 
-            // Route::get('/api-providers', [ApiProviderController::class, 'index']);
+            Route::get('/api-providers', [ApiProviderController::class, 'index']);
             // Route::post('/api-providers', [ApiProviderController::class, 'store']);
             // Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
             Route::post('/services/import', [ApiProviderController::class, 'import']);
             Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
+            Route::post('/services/all', [ApiProviderController::class, 'fetchAllServicesFromProvider']);
+            Route::post('/services/save', [ApiProviderController::class, 'importServices']);
         });
     });
 });
