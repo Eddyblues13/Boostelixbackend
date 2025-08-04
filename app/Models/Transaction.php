@@ -30,11 +30,13 @@ class Transaction extends Model
      */
     protected $fillable = [
         'user_id',
-        'trx_type',
+        'transaction_id',
         'amount',
         'charge',
-        'remarks',
-        'trx_id',
+        'transaction_type',
+        'description',
+        'status',
+        'meta',
     ];
 
     /**
