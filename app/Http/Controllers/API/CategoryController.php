@@ -26,5 +26,10 @@ class CategoryController extends Controller
             ], 500);
         }
     }
-    
+
+
+    public function allSmmCategories()
+    {
+        return response()->json(Category::where('is_active', true)->get());
+    }
 }

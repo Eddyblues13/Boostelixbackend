@@ -60,4 +60,48 @@ class ServiceController extends Controller
             ], 500);
         }
     }
+
+
+    public function allSmmServices(Request $request)
+    {
+        $query = Service::with(['category', 'apiProvider'])
+            ->when($request->has('category'), function ($query) use ($request) {
+                if ($request->category !== 'all') {
+                    $query->whereHas('category', function ($q) use ($request) {
+                        $q->where('slug', $request->category);
+                    });
+                }
+            })
+            ->when($request->has('search'), function ($query) use ($request) {
+                $query->where('service_title', 'like', '%' . $request->search . '%');
+            })
+            ->when($request->has('is_new'), function ($query) {
+                $query->where('is_new', true);
+            })
+            ->when($request->has('is_recommended'), function ($query) {
+                $query->where('is_recommended', true);
+            });
+
+        // Sorting
+        if ($request->has('sort')) {
+            switch ($request->sort) {
+                case 'price-low':
+                    $query->orderBy('price');
+                    break;
+                case 'price-high':
+                    $query->orderByDesc('price');
+                    break;
+                case 'popular':
+                    // You would need an order_count column or similar for this
+                    $query->orderByDesc('order_count');
+                    break;
+                default:
+                    $query->latest();
+            }
+        } else {
+            $query->latest();
+        }
+
+        return response()->json($query->paginate(15));
+    }
 }

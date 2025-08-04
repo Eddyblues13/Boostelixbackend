@@ -78,7 +78,7 @@ class OrderController extends Controller
         $order->service_id = $request->service;
         $order->link = $request->link;
         $order->quantity = $request->quantity;
-        $order->status = Order::STATUS_PROCESSING; 
+        $order->status = Order::STATUS_PROCESSING;
         $order->price = $price;
         $order->runs = $request->runs ?? null;
         $order->interval = $request->interval ?? null;
@@ -161,6 +161,72 @@ class OrderController extends Controller
             'message' => 'Order submitted successfully',
             'order_id' => $order->id,
             'balance' => $user->balance
+        ]);
+    }
+
+
+
+    public function history(Request $request)
+    {
+        $user = Auth::user();
+
+        $status = $request->input('status', 'all');
+        $search = $request->input('search', '');
+        $perPage = $request->input('per_page', 15);
+
+        $query = Order::with(['service:id,name', 'category:id,name'])
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc');
+
+        // Filter by status
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        // Search functionality
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('link', 'like', "%{$search}%")
+                    ->orWhereHas('service', function ($serviceQuery) use ($search) {
+                        $serviceQuery->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $orders = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'order_id' => 'ORD' . str_pad($order->id, 4, '0', STR_PAD_LEFT),
+                    'date' => $order->created_at->format('Y-m-d'),
+                    'link' => $order->link,
+                    'charge' => '₦' . number_format($order->price, 2),
+                    'start_count' => number_format($order->start_counter ?? 0),
+                    'quantity' => number_format($order->quantity),
+                    'service' => $order->service->name ?? 'N/A',
+                    'status' => $order->status,
+                    'remains' => number_format($order->remains ?? 0),
+                    'status_description' => $order->status_description,
+                ];
+            }),
+            'meta' => [
+                'total' => $orders->total(),
+                'current_page' => $orders->currentPage(),
+                'per_page' => $orders->perPage(),
+                'last_page' => $orders->lastPage(),
+            ],
+            'status_counts' => [
+                'all' => Order::where('user_id', $user->id)->count(),
+                'pending' => Order::where('user_id', $user->id)->where('status', 'pending')->count(),
+                'in-progress' => Order::where('user_id', $user->id)->where('status', 'in-progress')->count(),
+                'completed' => Order::where('user_id', $user->id)->where('status', 'completed')->count(),
+                'partial' => Order::where('user_id', $user->id)->where('status', 'partial')->count(),
+                'processing' => Order::where('user_id', $user->id)->where('status', 'processing')->count(),
+                'canceled' => Order::where('user_id', $user->id)->where('status', 'canceled')->count(),
+            ]
         ]);
     }
 }
