@@ -65,12 +65,12 @@ class OrderController extends Controller
         $price = round(($quantity * $userRate) / 1000);
 
         $user = Auth::user();
-        // if ($user->balance < $price) {
-        //     return response()->json([
-        //         'status' => 'error',
-        //         'message' => 'Insufficient balance'
-        //     ], 400);
-        // }
+        if ($user->balance < $price) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Insufficient balance'
+            ], 400);
+        }
 
         $order = new Order();
         $order->user_id = $user->id;
