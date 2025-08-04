@@ -20,6 +20,18 @@ return new class extends Migration
             $table->decimal('balance', 15, 2)->default(0.00);
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
+            $table->string('language')->default('en');
+            $table->string('timezone')->default('utc+1');
+            $table->boolean('two_factor_enabled')->default(false);
+            $table->string('api_key')->nullable();
+
+            // Notification preferences
+            $table->boolean('email_orders')->default(true);
+            $table->boolean('email_promotions')->default(false);
+            $table->boolean('email_updates')->default(true);
+            $table->boolean('push_orders')->default(true);
+            $table->boolean('push_promotions')->default(false);
+            $table->boolean('push_updates')->default(false);
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();

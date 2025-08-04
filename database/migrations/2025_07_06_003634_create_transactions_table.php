@@ -14,16 +14,18 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->integer('user_id');
-            $table->string('trx_type', 10);
-            $table->decimal('amount', 18, 8)->nullable();
-            $table->decimal('charge', 18, 8)->nullable();
-            $table->string('remarks', 191);
-            $table->string('trx_id', 191);
+            $table->string('transaction_id')->unique();
+            $table->decimal('amount', 15, 2);
+            $table->decimal('charge', 15, 2);
+            $table->string('transaction_type');
+            $table->text('description')->nullable();
+            $table->string('status')->default('pending');
+            $table->json('meta')->nullable();
             $table->timestamps();
 
             // Indexes
             $table->index('user_id');
-            $table->index('trx_id');
+            $table->index('transaction_id');
         });
     }
 

@@ -2,10 +2,11 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
 use App\Models\Service;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\ServiceUpdate;
+use Illuminate\Http\JsonResponse;
+use App\Http\Controllers\Controller;
 
 class ServiceController extends Controller
 {
@@ -103,5 +104,16 @@ class ServiceController extends Controller
         }
 
         return response()->json($query->paginate(15));
+    }
+
+
+
+    public function serviceUpdates()
+    {
+        $updates = ServiceUpdate::orderBy('date', 'desc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($updates);
     }
 }
