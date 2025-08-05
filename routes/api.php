@@ -108,8 +108,8 @@ Route::prefix('admin')->group(function () {
             Route::post('/{id}/sync-services', [ApiProviderController::class, 'syncServices']);
 
             Route::get('/api-providers', [ApiProviderController::class, 'index']);
-            // Route::post('/api-providers', [ApiProviderController::class, 'store']);
-            // Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
+            Route::post('/api-providers', [ApiProviderController::class, 'store']);
+            Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
             Route::post('/services/import', [ApiProviderController::class, 'import']);
             Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
             Route::post('/services/all', [ApiProviderController::class, 'fetchAllServicesFromProvider']);
