@@ -129,32 +129,34 @@ class OrderController extends Controller
         $user->balance -= $price;
         $user->save();
 
-        $transaction = new Transaction();
-        $transaction->user_id = $user->id;
-        $transaction->trx_type = '-';
-        $transaction->amount = $price;
-        $transaction->remarks = 'Place order';
-        $transaction->trx_id = str()->random(20);
-        $transaction->charge = 0;
-        $transaction->save();
+        $transaction = Transaction::create([
+            'user_id' => $user->id,
+            'transaction_id' => str()->random(20),
+            'transaction_type' => 'Debit',
+            'amount' => $price,
+            'charge' => 0,
+            'description' => 'Place order',
+            'status' => 'pending',
+            'meta' => null,
+        ]);
 
         // Send email using CustomMail
-        $emailBody = view('email.order_confirm', [
-            'user' => $user,
-            'order_id' => $order->id,
-            'order_at' => $order->created_at,
-            'service' => optional($order->service)->service_title,
-            'status' => $order->status,
-            'paid_amount' => $price,
-            'remaining_balance' => $user->balance,
-            'currency' => "$",
-            'transaction' => $transaction->trx_id,
-        ])->render();
+        // $emailBody = view('email.order_confirm', [
+        //     'user' => $user,
+        //     'order_id' => $order->id,
+        //     'order_at' => $order->created_at,
+        //     'service' => optional($order->service)->service_title,
+        //     'status' => $order->status,
+        //     'paid_amount' => $price,
+        //     'remaining_balance' => $user->balance,
+        //     'currency' => "$",
+        //     'transaction' => $transaction->trx_id,
+        // ])->render();
 
-        Mail::to($user->email)->send(new CustomMail(
-            subject: "Order Confirmation #{$order->id}",
-            messageBody: $emailBody
-        ));
+        // Mail::to($user->email)->send(new CustomMail(
+        //     subject: "Order Confirmation #{$order->id}",
+        //     messageBody: $emailBody
+        // ));
 
         return response()->json([
             'status' => 'success',

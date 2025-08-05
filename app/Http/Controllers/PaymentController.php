@@ -10,138 +10,136 @@ use Illuminate\Support\Facades\Auth;
 
 class PaymentController extends Controller
 {
+
+    /**
+     * Initiate a payment with Flutterwave.
+     */
     public function initiatePayment(Request $request)
     {
         $request->validate([
-            'amount' => 'required|numeric|min:100',
-            'currency' => 'required|string',
-            'payment_method' => 'required|string',
-            'email' => 'required|email',
-            'name' => 'required|string',
+            'amount' => 'required|numeric|min:1',
+            'currency' => 'required|',
+            'name' => 'required|string|max:255',
+            'payment_method' => 'required|string|in:flutterwave,paystack',
+            // 'email' => 'required|email|max:255',
         ]);
 
-        if ($request->payment_method === 'flutterwave') {
-            return $this->initiateFlutterwavePayment($request);
-        }
+        // Generate a unique transaction reference.
+        $transactionRef = 'TX_' . uniqid();
 
-        // Handle other payment methods here
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Payment method not supported'
-        ], 400);
-    }
-
-    private function initiateFlutterwavePayment(Request $request)
-    {
-        $transactionID = 'TX-' . time() . '-' . uniqid();
-
-        $paymentData = [
-            'tx_ref' => $transactionID,
+        // Save transaction details to the database.
+        $payment = Transaction::create([
+            'user_id' => Auth::id(),
+            'transaction_id' => $transactionRef,
             'amount' => $request->amount,
-            'currency' => Auth::user()->currency,
-            'redirect_url' => config('app.url') . '/api/payment/callback',
-            'payment_options' => 'card,account,ussd',
+            'charge' => 0.00,
+            'transaction_type' => 'deposit',
+            'description' => 'Payment via Flutterwave',
+            'status' => 'pending',
+            // 'meta' => json_encode($paymentData),
+        ]);
+
+        // Prepare the data for the Flutterwave API.
+        $paymentData = [
+            'tx_ref' => $transactionRef,
+            'amount' => $request->amount,
+            'currency' => $request->currency, // Adjust the currency as needed
+            'redirect_url' => url('/welcome'),
             'customer' => [
-                'email' => $request->email,
-                'name' => $request->name,
+                'email' => Auth::user()->email,
+                'name' =>  Auth::user()->first_name,
             ],
-            'customizations' => [
-                'title' => config('app.name'),
-                'description' => 'Account Funding',
-            ],
+            'payment_options' => 'card', // Add other payment methods if needed
+            'meta' => $payment->meta,
         ];
 
+        // Redirect the user to the Flutterwave payment page.
+        $paymentURL = $this->createFlutterwavePaymentLink($paymentData);
+        if ($paymentURL) {
+            return redirect($paymentURL);
+        }
+
+        return back()->with('error', 'Error initiating payment. Please try again.');
+    }
+
+    /**
+     * Create a payment link using Guzzle.
+     */
+    private function createFlutterwavePaymentLink($data)
+    {
+        $client = new Client();
+        $url = 'https://api.flutterwave.com/v3/payments';
+
         try {
-            $client = new Client();
-            $response = $client->post('https://api.flutterwave.com/v3/payments', [
+            $response = $client->post($url, [
                 'headers' => [
                     'Authorization' => 'Bearer ' . config('services.flutterwave.secret_key'),
                     'Content-Type' => 'application/json',
                 ],
-                'json' => $paymentData,
+                'json' => $data,
             ]);
 
-            $responseData = json_decode($response->getBody(), true);
+            $body = json_decode($response->getBody(), true);
 
-            if ($responseData['status'] === 'success') {
-                // Save transaction to database
-                $transaction = Transaction::create([
-                    'user_id' => Auth::id(),
-                    'transaction_id' => $transactionID,
-                    'amount' => $request->amount,
-                    'charge' => 0.00,
-                    'transaction_type' => 'deposit',
-                    'description' => 'Payment via Flutterwave',
-                    'status' => 'pending',
-                    'meta' => $paymentData,
-                ]);
-                return response()->json([
-                    'status' => 'success',
-                    'payment_url' => $responseData['data']['link'],
-                    'transaction_id' => $transactionID,
+            if ($body['status'] === 'success') {
+                return $body['data']['link'];
+            }
+        } catch (\Exception $e) {
+            report($e);
+        }
+
+        return null;
+    }
+
+    /**
+     * Handle Flutterwave callback.
+     */
+    public function handleCallback(Request $request)
+    {
+        $transactionID = $request->transaction_id;
+
+        // Verify the payment.
+        $verificationResponse = $this->verifyPayment($transactionID);
+
+        if ($verificationResponse && $verificationResponse['status'] === 'success') {
+            // Update the payment record in the database.
+            $payment = Transaction::where('transaction_id', $verificationResponse['data']['tx_ref'])->first();
+
+            if ($payment) {
+                $payment->update([
+                    'transaction_id' => $verificationResponse['data']['id'],
+                    'status' => 'successful',
+                    'payment_method' => $verificationResponse['data']['payment_type'],
                 ]);
             }
 
-            return response()->json([
-                'status' => 'error',
-                'message' => $responseData['message'] ?? 'Payment initiation failed'
-            ], 400);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ], 500);
+            return view('advertiser.success', ['payment' => $payment]);
         }
+
+        return view('advertiser.error');
     }
 
-    public function paymentCallback(Request $request)
+    /**
+     * Verify payment using Guzzle.
+     */
+    private function verifyPayment($transactionID)
     {
-        $transactionId = $request->transaction_id;
+        $client = new Client();
+        $url = "https://api.flutterwave.com/v3/transactions/{$transactionID}/verify";
 
         try {
-            $client = new Client();
-            $response = $client->get("https://api.flutterwave.com/v3/transactions/{$transactionId}/verify", [
+            $response = $client->get($url, [
                 'headers' => [
                     'Authorization' => 'Bearer ' . config('services.flutterwave.secret_key'),
                     'Content-Type' => 'application/json',
                 ],
             ]);
 
-            $responseData = json_decode($response->getBody(), true);
-
-            if ($responseData['status'] === 'success' && $responseData['data']['status'] === 'successful') {
-                $transaction = \App\Models\Transaction::where('transaction_id', $responseData['data']['tx_ref'])
-                    ->first();
-
-                if ($transaction) {
-                    $transaction->update([
-                        'status' => 'completed',
-                        'meta' => json_encode($responseData['data']),
-                    ]);
-
-                    // Credit user's account
-                    $transaction->user->increment('balance', $transaction->amount);
-
-
-                    return redirect(config('app.frontend_url') . '/dashboard?payment=success');
-                }
-            }
-
-            return redirect(config('app.frontend_url') . '/dashboard?payment=error');
+            return json_decode($response->getBody(), true);
         } catch (\Exception $e) {
-            return redirect(config('app.frontend_url') . '/dashboard?payment=error');
+            report($e);
         }
-    }
 
-    public function paymentHistory(Request $request)
-    {
-        $transactions = Transaction::where('user_id', Auth::id())
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $transactions
-        ]);
+        return null;
     }
 }
