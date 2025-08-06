@@ -27,6 +27,16 @@ class User extends Authenticatable
         'currency',
         'email',
         'password',
+        'language',
+        'timezone',
+        'two_factor_enabled',
+        'api_key',
+        'email_orders',
+        'email_promotions',
+        'email_updates',
+        'push_orders',
+        'push_promotions',
+        'push_updates',
     ];
 
     /**
@@ -49,6 +59,13 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'two_factor_enabled' => 'boolean',
+            'email_orders' => 'boolean',
+            'email_promotions' => 'boolean',
+            'email_updates' => 'boolean',
+            'push_orders' => 'boolean',
+            'push_promotions' => 'boolean',
+            'push_updates' => 'boolean',
         ];
     }
 
@@ -58,7 +75,7 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
-       public function transactions(): HasMany
+    public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
     }

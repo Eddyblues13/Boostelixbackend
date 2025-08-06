@@ -11,8 +11,7 @@ class CategoryController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $categories = Category::where('status', 1)
-                ->orderBy('category_title')
+            $categories = Category::orderBy('category_title')
                 ->get(['id', 'category_title', 'category_description']);
 
             return response()->json([
@@ -26,5 +25,10 @@ class CategoryController extends Controller
             ], 500);
         }
     }
-    
+
+
+    public function allSmmCategories()
+    {
+        return response()->json(Category::where('is_active', true)->get());
+    }
 }

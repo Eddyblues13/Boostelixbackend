@@ -1,23 +1,26 @@
 <?php
 
-use App\Http\Controllers\API\Admin\AdminAuthController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\API\LoginController;
+use App\Http\Controllers\API\OrderController;
+use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\API\ServiceController;
+use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\Api\Admin\AdminController;
+use App\Http\Controllers\API\Admin\AdminAuthController;
+use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
-use App\Http\Controllers\Api\Admin\ManageUserController;
-use App\Http\Controllers\API\CategoryController;
-use App\Http\Controllers\API\LoginController;
-use App\Http\Controllers\API\OrderController;
-use App\Http\Controllers\API\RegisterController;
-use App\Http\Controllers\API\ServiceController;
-use App\Http\Controllers\Api\TicketController;
-use App\Http\Controllers\API\UserController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
+
 
 
 
@@ -36,19 +39,42 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/logout', [UserController::class, 'logout']);
     // Categories endpoint
     Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/all-smm-categories', [CategoryController::class, 'allSmmCategories']);
 
     // Services endpoint
     Route::get('/services', [ServiceController::class, 'index']);
+    Route::get('/all-smm-services', [ServiceController::class, 'allSmmServices']);
+    Route::get('/updates', [ServiceController::class, 'serviceUpdates']);
 
     // orders endpoint
     Route::post('/orders', [OrderController::class, 'store']);
+    Route::get('/orders/history', [OrderController::class, 'history']);
 
-     // Ticket endpoint
-    Route::post('/tickets', [TicketController::class, 'store']);
 
-       // Ticket History endpoint
-    Route::get('/ticketshistory', [TicketController::class, 'index']);
+    // Payment endpoints
+    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
+    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
+
+
+
+
+
+
+
+    // Account routes
+    Route::get('/account', [AccountController::class, 'getAccount']);
+    Route::get('/account/notifications', [AccountController::class, 'getNotifications']);
+    Route::put('/account/password', [AccountController::class, 'updatePassword']);
+    Route::put('/account/email', [AccountController::class, 'updateEmail']);
+    Route::put('/account/username', [AccountController::class, 'updateUsername']);
+    Route::put('/account/two-factor', [AccountController::class, 'updateTwoFactor']);
+    Route::post('/account/api-key', [AccountController::class, 'generateApiKey']);
+    Route::put('/account/preferences', [AccountController::class, 'updatePreferences']);
+    Route::put('/account/notifications', [AccountController::class, 'updateNotifications']);
 });
+
+// Callback route (no auth needed)
+Route::get('/payment/callback', [PaymentController::class, 'paymentCallback']);
 
 
 
@@ -129,6 +155,8 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     Route::patch('/orders/{id}/status', [ManageOrderController::class, 'updateStatus']);
     Route::get('/categories', [ManageOrderController::class, 'getUserCategories']);
     Route::get('/services', [ManageOrderController::class, 'getUserServices']);
+    Route::get('/orders', [ManageOrderController::class, 'allOrders']);
+
 
 
     // Transaction management

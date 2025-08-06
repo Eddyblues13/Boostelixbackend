@@ -65,12 +65,12 @@ class OrderController extends Controller
         $price = round(($quantity * $userRate) / 1000);
 
         $user = Auth::user();
-        // if ($user->balance < $price) {
-        //     return response()->json([
-        //         'status' => 'error',
-        //         'message' => 'Insufficient balance'
-        //     ], 400);
-        // }
+        if ($user->balance < $price) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Insufficient balance'
+            ], 400);
+        }
 
         $order = new Order();
         $order->user_id = $user->id;
@@ -78,7 +78,7 @@ class OrderController extends Controller
         $order->service_id = $request->service;
         $order->link = $request->link;
         $order->quantity = $request->quantity;
-        $order->status = Order::STATUS_PROCESSING; 
+        $order->status = Order::STATUS_PROCESSING;
         $order->price = $price;
         $order->runs = $request->runs ?? null;
         $order->interval = $request->interval ?? null;
@@ -129,38 +129,106 @@ class OrderController extends Controller
         $user->balance -= $price;
         $user->save();
 
-        $transaction = new Transaction();
-        $transaction->user_id = $user->id;
-        $transaction->trx_type = '-';
-        $transaction->amount = $price;
-        $transaction->remarks = 'Place order';
-        $transaction->trx_id = str()->random(20);
-        $transaction->charge = 0;
-        $transaction->save();
+        $transaction = Transaction::create([
+            'user_id' => $user->id,
+            'transaction_id' => str()->random(20),
+            'transaction_type' => 'Debit',
+            'amount' => $price,
+            'charge' => 0,
+            'description' => 'Place order',
+            'status' => 'pending',
+            'meta' => null,
+        ]);
 
         // Send email using CustomMail
-        $emailBody = view('email.order_confirm', [
-            'user' => $user,
-            'order_id' => $order->id,
-            'order_at' => $order->created_at,
-            'service' => optional($order->service)->service_title,
-            'status' => $order->status,
-            'paid_amount' => $price,
-            'remaining_balance' => $user->balance,
-            'currency' => "$",
-            'transaction' => $transaction->trx_id,
-        ])->render();
+        // $emailBody = view('email.order_confirm', [
+        //     'user' => $user,
+        //     'order_id' => $order->id,
+        //     'order_at' => $order->created_at,
+        //     'service' => optional($order->service)->service_title,
+        //     'status' => $order->status,
+        //     'paid_amount' => $price,
+        //     'remaining_balance' => $user->balance,
+        //     'currency' => "$",
+        //     'transaction' => $transaction->trx_id,
+        // ])->render();
 
-        Mail::to($user->email)->send(new CustomMail(
-            subject: "Order Confirmation #{$order->id}",
-            messageBody: $emailBody
-        ));
+        // Mail::to($user->email)->send(new CustomMail(
+        //     subject: "Order Confirmation #{$order->id}",
+        //     messageBody: $emailBody
+        // ));
 
         return response()->json([
             'status' => 'success',
             'message' => 'Order submitted successfully',
             'order_id' => $order->id,
             'balance' => $user->balance
+        ]);
+    }
+
+
+
+    public function history(Request $request)
+    {
+        $user = Auth::user();
+
+        $status = $request->input('status', 'all');
+        $search = $request->input('search', '');
+        $perPage = $request->input('per_page', 15);
+
+        $query = Order::with(['service:id,name', 'category:id,name'])
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc');
+
+        // Filter by status
+        if ($status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        // Search functionality
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('link', 'like', "%{$search}%")
+                    ->orWhereHas('service', function ($serviceQuery) use ($search) {
+                        $serviceQuery->where('name', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $orders = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $orders->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'order_id' => 'ORD' . str_pad($order->id, 4, '0', STR_PAD_LEFT),
+                    'date' => $order->created_at->format('Y-m-d'),
+                    'link' => $order->link,
+                    'charge' => '₦' . number_format($order->price, 2),
+                    'start_count' => number_format($order->start_counter ?? 0),
+                    'quantity' => number_format($order->quantity),
+                    'service' => $order->service->name ?? 'N/A',
+                    'status' => $order->status,
+                    'remains' => number_format($order->remains ?? 0),
+                    'status_description' => $order->status_description,
+                ];
+            }),
+            'meta' => [
+                'total' => $orders->total(),
+                'current_page' => $orders->currentPage(),
+                'per_page' => $orders->perPage(),
+                'last_page' => $orders->lastPage(),
+            ],
+            'status_counts' => [
+                'all' => Order::where('user_id', $user->id)->count(),
+                'pending' => Order::where('user_id', $user->id)->where('status', 'pending')->count(),
+                'in-progress' => Order::where('user_id', $user->id)->where('status', 'in-progress')->count(),
+                'completed' => Order::where('user_id', $user->id)->where('status', 'completed')->count(),
+                'partial' => Order::where('user_id', $user->id)->where('status', 'partial')->count(),
+                'processing' => Order::where('user_id', $user->id)->where('status', 'processing')->count(),
+                'canceled' => Order::where('user_id', $user->id)->where('status', 'canceled')->count(),
+            ]
         ]);
     }
 }
