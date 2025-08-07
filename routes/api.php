@@ -50,6 +50,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/history', [OrderController::class, 'history']);
 
+     // Ticket endpoint
+    Route::post('/tickets', [TicketController::class, 'store']);
+
+       // Ticket History endpoint
+    Route::get('/ticketshistory', [TicketController::class, 'index']);
 
     // Payment endpoints
     Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
