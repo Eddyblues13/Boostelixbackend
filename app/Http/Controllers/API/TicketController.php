@@ -11,6 +11,22 @@ use Illuminate\Support\Str;
 class TicketController extends Controller
 {
 
+
+   public function index()
+{
+    $user = Auth::user();
+
+    $tickets = Ticket::where('user_id', $user->id)->latest()->get();
+
+    return response()->json([
+        'status' => 'success',
+        'tickets' => $tickets
+    ]);
+}
+
+
+
+
 public function store(Request $request)
 {
     $request->validate([
@@ -37,10 +53,18 @@ public function store(Request $request)
     ]);
 
     return response()->json([
-        'message' => 'Ticket submitted successfully',
-        'ticket'  => $ticket,
-    ], 201);
+        'status'   => 'success',
+        'message'  => 'Ticket submitted successfully',
+        'ticket_id' => $ticket->id,
+        'ticket'    => $ticket,
+        'user'      => [
+            'id'    => $user->id,
+            'name'  => $user->name,
+            'email' => $user->email
+        ],
+    ]);
 }
+
 
 }
 
