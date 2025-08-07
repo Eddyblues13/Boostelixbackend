@@ -84,7 +84,7 @@ class ManageOrderController extends Controller
     public function allOrders(): JsonResponse
     {
         try {
-            $orders = Order::with('user')->get();
+            $orders = Order::with(['user', 'service'])->get();
 
             return response()->json([
                 'success' => true,
