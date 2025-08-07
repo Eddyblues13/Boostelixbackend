@@ -176,7 +176,7 @@ class OrderController extends Controller
         $search = $request->input('search', '');
         $perPage = $request->input('per_page', 15);
 
-        $query = Order::with(['service:id,name', 'category:id,name'])
+        $query = Order::with(['service:id,service_title', 'category:id,category_title'])
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc');
 
