@@ -24,6 +24,21 @@ class PaymentController extends Controller
             'payment_method' => 'required|string|in:flutterwave,paystack',
         ]);
 
+        // Validate payment method configuration
+        if ($validated['payment_method'] === 'flutterwave' && empty(config('services.flutterwave.secret_key'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Flutterwave payment is not properly configured',
+            ], 500);
+        }
+
+        if ($validated['payment_method'] === 'paystack' && empty(config('services.paystack.secret_key'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Paystack payment is not properly configured',
+            ], 500);
+        }
+
         try {
             $transactionRef = 'TX_' . uniqid();
 
@@ -43,10 +58,10 @@ class PaymentController extends Controller
                 'tx_ref' => $transactionRef,
                 'amount' => $validated['amount'],
                 'currency' => Auth::user()->currency,
-                'redirect_url' => config('app.frontend_url') . '/payment/callback',
+                'redirect_url' => rtrim(config('app.frontend_url'), '/') . '/payment/callback',
                 'customer' => [
                     'email' => Auth::user()->email,
-                    'name' => Auth::user()->first_name,
+                    'name' => Auth::user()->first_name . ' ' . Auth::user()->last_name,
                 ],
                 'payment_options' => 'card',
                 'meta' => [
@@ -171,7 +186,7 @@ class PaymentController extends Controller
             case 'paystack':
                 return $this->createPaystackPaymentLink($data);
             default:
-                return null;
+                throw new \InvalidArgumentException("Unsupported payment method: {$method}");
         }
     }
 
@@ -184,23 +199,91 @@ class PaymentController extends Controller
     private function createFlutterwavePaymentLink(array $data): ?string
     {
         try {
+            $flutterwaveKey = config('services.flutterwave.secret_key');
+
+            if (empty($flutterwaveKey)) {
+                throw new \RuntimeException('Flutterwave secret key is not configured');
+            }
+
+            Log::debug('Attempting Flutterwave payment', ['data' => $data]);
+
             $client = new Client();
             $response = $client->post('https://api.flutterwave.com/v3/payments', [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . config('services.flutterwave.secret_key'),
+                    'Authorization' => 'Bearer ' . $flutterwaveKey,
                     'Content-Type' => 'application/json',
                 ],
                 'json' => $data,
             ]);
 
-            $body = json_decode($response->getBody(), true);
+            $body = json_decode((string)$response->getBody(), true);
 
-            return $body['status'] === 'success' ? $body['data']['link'] : null;
+            if (!isset($body['status']) || $body['status'] !== 'success') {
+                Log::error('Flutterwave payment failed', ['response' => $body]);
+                throw new \RuntimeException($body['message'] ?? 'Flutterwave payment failed');
+            }
+
+            return $body['data']['link'] ?? null;
         } catch (\Exception $e) {
-            Log::error('Flutterwave payment link creation failed: ' . $e->getMessage());
-            return null;
+            Log::error('Flutterwave payment error: ' . $e->getMessage());
+            throw $e;
         }
     }
+
+
+
+
+
+    //  private function createFlutterwavePaymentLink(array $data): ?string
+    // {
+    //     // Start with a debug marker
+    //     error_log("==== FLUTTERWAVE PAYMENT START ====");
+
+    //     try {
+    //         // 1. Verify config exists
+    //         $flutterwaveKey = config('services.flutterwave.secret_key');
+    //         if (empty($flutterwaveKey)) {
+    //             error_log('MISSING FLUTTERWAVE KEY IN CONFIG');
+    //             return null;
+    //         }
+
+    //         // 2. Log to multiple channels
+    //         $logMessage = "Attempting Flutterwave payment with amount: " . $data['amount'];
+    //         \Log::debug($logMessage);
+    //         error_log($logMessage);
+
+    //         // 3. Make the request with verbose logging
+    //         $client = new Client();
+    //         $response = $client->post('https://api.flutterwave.com/v3/payments', [
+    //             'headers' => [
+    //                 'Authorization' => 'Bearer ' . $flutterwaveKey,
+    //                 'Content-Type' => 'application/json',
+    //             ],
+    //             'json' => $data,
+    //         ]);
+
+    //         // 4. Get response details
+    //         $statusCode = $response->getStatusCode();
+    //         $body = json_decode((string)$response->getBody(), true);
+
+    //         // 5. Triple logging
+    //         \Log::debug("Flutterwave Response", ['status' => $statusCode, 'body' => $body]);
+    //         error_log("Flutterwave Status: " . $statusCode);
+    //         error_log("Response Body: " . print_r($body, true));
+
+    //         return $body['data']['link'] ?? null;
+    //     } catch (\Exception $e) {
+    //         // Log to all available channels
+    //         $errorMsg = "Flutterwave Error: " . $e->getMessage();
+    //         \Log::error($errorMsg);
+    //         error_log($errorMsg);
+    //         error_log("Stack Trace: " . $e->getTraceAsString());
+
+    //         return null;
+    //     } finally {
+    //         error_log("==== FLUTTERWAVE PAYMENT END ====");
+    //     }
+    // }
 
     /**
      * Create a Paystack payment link.
@@ -211,10 +294,16 @@ class PaymentController extends Controller
     private function createPaystackPaymentLink(array $data): ?string
     {
         try {
+            $paystackKey = config('services.paystack.secret_key');
+
+            if (empty($paystackKey)) {
+                throw new \RuntimeException('Paystack secret key is not configured');
+            }
+
             $client = new Client();
             $response = $client->post('https://api.paystack.co/transaction/initialize', [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . config('services.paystack.secret_key'),
+                    'Authorization' => 'Bearer ' . $paystackKey,
                     'Content-Type' => 'application/json',
                 ],
                 'json' => [
@@ -228,10 +317,15 @@ class PaymentController extends Controller
 
             $body = json_decode($response->getBody(), true);
 
-            return $body['status'] ? $body['data']['authorization_url'] : null;
+            if (!$body['status']) {
+                Log::error('Paystack payment failed', ['response' => $body]);
+                throw new \RuntimeException($body['message'] ?? 'Paystack payment failed');
+            }
+
+            return $body['data']['authorization_url'] ?? null;
         } catch (\Exception $e) {
-            Log::error('Paystack payment link creation failed: ' . $e->getMessage());
-            return null;
+            Log::error('Paystack payment error: ' . $e->getMessage());
+            throw $e;
         }
     }
 
@@ -244,18 +338,45 @@ class PaymentController extends Controller
     private function verifyFlutterwavePayment(string $transactionId): ?array
     {
         try {
+            $flutterwaveKey = config('services.flutterwave.secret_key');
+
+            if (empty($flutterwaveKey)) {
+                throw new \RuntimeException('Flutterwave secret key is not configured');
+            }
+
             $client = new Client();
             $response = $client->get("https://api.flutterwave.com/v3/transactions/{$transactionId}/verify", [
                 'headers' => [
-                    'Authorization' => 'Bearer ' . config('services.flutterwave.secret_key'),
+                    'Authorization' => 'Bearer ' . $flutterwaveKey,
                     'Content-Type' => 'application/json',
                 ],
             ]);
 
-            return json_decode($response->getBody(), true);
+            $body = json_decode($response->getBody(), true);
+
+            if (!isset($body['status']) || $body['status'] !== 'success') {
+                Log::error('Flutterwave verification failed', ['response' => $body]);
+                throw new \RuntimeException($body['message'] ?? 'Payment verification failed');
+            }
+
+            return $body;
         } catch (\Exception $e) {
-            Log::error('Flutterwave payment verification failed: ' . $e->getMessage());
-            return null;
+            Log::error('Flutterwave verification error: ' . $e->getMessage());
+            throw $e;
         }
+    }
+
+    /**
+     * Get payment history for authenticated user.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function paymentHistory()
+    {
+        $transactions = Transaction::where('user_id', Auth::id())
+            ->latest()
+            ->get();
+
+        return response()->json($transactions);
     }
 }
