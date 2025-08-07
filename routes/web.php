@@ -13,7 +13,7 @@ Route::get('/test', function () {
 
 
 // routes/web.php
-Route::get('/debug/flutterwave-config', function() {
+Route::get('/debug/flutterwave-configg', function () {
     return [
         'config' => config('services.flutterwave'),
         'env' => [
