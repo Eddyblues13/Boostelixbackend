@@ -117,6 +117,8 @@ Route::prefix('admin')->group(function () {
         Route::post('/services/{id}/activate', [ManageServiceController::class, 'activate']);
         Route::post('/services/{id}/deactivate', [ManageServiceController::class, 'deactivate']);
         Route::post('/services/deactivate-multiple', [ManageServiceController::class, 'deactivateMultiple']);
+        Route::get('/orders', [ManageOrderController::class, 'allOrders']);
+
 
         // api providers
         Route::prefix('providers')->group(function () {
@@ -168,8 +170,6 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     Route::patch('/orders/{id}/status', [ManageOrderController::class, 'updateStatus']);
     Route::get('/categories', [ManageOrderController::class, 'getUserCategories']);
     Route::get('/services', [ManageOrderController::class, 'getUserServices']);
-    Route::get('/orders', [ManageOrderController::class, 'allOrders']);
-
 
 
     // Transaction management
