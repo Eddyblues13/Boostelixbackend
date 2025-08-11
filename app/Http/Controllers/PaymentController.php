@@ -111,53 +111,65 @@ class PaymentController extends Controller
     {
         try {
             $transactionId = $request->input('transaction_id');
+            $txRef = $request->input('tx_ref');
             $status = $request->input('status');
 
-            if (!$transactionId) {
+            // Use either transaction_id or tx_ref
+            $reference = $transactionId ?? $txRef;
+
+            if (!$reference) {
                 throw new \Exception('Missing transaction reference');
             }
 
-            if ($status === 'successful') {
-                $verification = $this->verifyFlutterwavePayment($transactionId);
+            // Find the transaction by either field
+            $payment = Transaction::where('transaction_id', $reference)
+                ->orWhere('meta->tx_ref', $reference)
+                ->first();
 
-                if (!$verification || $verification['status'] !== 'success') {
-                    throw new \Exception('Payment verification failed');
-                }
-
-                $txRef = $verification['data']['tx_ref'];
-                $payment = Transaction::where('transaction_id', $txRef)->first();
-
-                if (!$payment) {
-                    throw new \Exception('Transaction not found');
-                }
-
-                $payment->update([
-                    'transaction_id' => $verification['data']['id'],
-                    'status' => 'completed',
-                    'payment_method' => $verification['data']['payment_type'] ?? $payment->payment_method,
-                    'meta' => json_encode($verification['data']),
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'payment' => $payment,
-                    'message' => 'Payment verified successfully',
-                ]);
+            if (!$payment) {
+                throw new \Exception('Transaction not found');
             }
 
-            // Handle cancelled/failed payments
-            $txRef = $request->input('tx_ref');
-            if ($txRef) {
-                $payment = Transaction::where('transaction_id', $txRef)->first();
-                if ($payment) {
-                    $payment->update(['status' => 'failed']);
+            // Handle all possible statuses
+            if ($status === 'successful' || $status === 'completed') {
+                if ($payment->payment_method === 'flutterwave') {
+                    $verification = $this->verifyFlutterwavePayment($reference);
+
+                    if (!$verification || $verification['status'] !== 'success') {
+                        throw new \Exception('Payment verification failed');
+                    }
+
+                    $payment->update([
+                        'transaction_id' => $verification['data']['id'] ?? $reference,
+                        'status' => 'completed',
+                        'payment_method' => $verification['data']['payment_type'] ?? $payment->payment_method,
+                        'meta' => json_encode($verification['data'] ?? []),
+                    ]);
+
+                    // Credit user's balance
+                    $user = $payment->user;
+                    $user->balance += $payment->amount;
+                    $user->save();
+                } else {
+                    // For other payment methods
+                    $payment->update(['status' => 'completed']);
+
+                    // Credit user's balance
+                    $user = $payment->user;
+                    $user->balance += $payment->amount;
+                    $user->save();
                 }
+            } elseif ($status === 'cancelled' || $status === 'failed') {
+                $payment->update(['status' => 'failed']);
+            } else {
+                $payment->update(['status' => 'pending']);
             }
 
             return response()->json([
-                'success' => false,
-                'message' => 'Payment was not successful',
-            ], 400);
+                'success' => true,
+                'payment' => $payment,
+                'message' => 'Payment status updated',
+            ]);
         } catch (\Exception $e) {
             Log::error('Payment callback failed: ' . $e->getMessage(), [
                 'request' => $request->all(),
@@ -232,58 +244,6 @@ class PaymentController extends Controller
 
 
 
-
-
-    //  private function createFlutterwavePaymentLink(array $data): ?string
-    // {
-    //     // Start with a debug marker
-    //     error_log("==== FLUTTERWAVE PAYMENT START ====");
-
-    //     try {
-    //         // 1. Verify config exists
-    //         $flutterwaveKey = config('services.flutterwave.secret_key');
-    //         if (empty($flutterwaveKey)) {
-    //             error_log('MISSING FLUTTERWAVE KEY IN CONFIG');
-    //             return null;
-    //         }
-
-    //         // 2. Log to multiple channels
-    //         $logMessage = "Attempting Flutterwave payment with amount: " . $data['amount'];
-    //         \Log::debug($logMessage);
-    //         error_log($logMessage);
-
-    //         // 3. Make the request with verbose logging
-    //         $client = new Client();
-    //         $response = $client->post('https://api.flutterwave.com/v3/payments', [
-    //             'headers' => [
-    //                 'Authorization' => 'Bearer ' . $flutterwaveKey,
-    //                 'Content-Type' => 'application/json',
-    //             ],
-    //             'json' => $data,
-    //         ]);
-
-    //         // 4. Get response details
-    //         $statusCode = $response->getStatusCode();
-    //         $body = json_decode((string)$response->getBody(), true);
-
-    //         // 5. Triple logging
-    //         \Log::debug("Flutterwave Response", ['status' => $statusCode, 'body' => $body]);
-    //         error_log("Flutterwave Status: " . $statusCode);
-    //         error_log("Response Body: " . print_r($body, true));
-
-    //         return $body['data']['link'] ?? null;
-    //     } catch (\Exception $e) {
-    //         // Log to all available channels
-    //         $errorMsg = "Flutterwave Error: " . $e->getMessage();
-    //         \Log::error($errorMsg);
-    //         error_log($errorMsg);
-    //         error_log("Stack Trace: " . $e->getTraceAsString());
-
-    //         return null;
-    //     } finally {
-    //         error_log("==== FLUTTERWAVE PAYMENT END ====");
-    //     }
-    // }
 
     /**
      * Create a Paystack payment link.
@@ -363,6 +323,71 @@ class PaymentController extends Controller
         } catch (\Exception $e) {
             Log::error('Flutterwave verification error: ' . $e->getMessage());
             throw $e;
+        }
+    }
+
+
+
+
+    /**
+     * Verify a payment (API endpoint).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function paymentCallback(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_id' => 'required|string',
+                'status' => 'required|string|in:successful,completed,failed,cancelled',
+            ]);
+
+            $transaction = Transaction::where('transaction_id', $validated['transaction_id'])
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction not found',
+                ], 404);
+            }
+
+            // If already verified, return current status
+            if ($transaction->status === 'completed') {
+                return response()->json([
+                    'success' => true,
+                    'data' => $transaction,
+                    'message' => 'Payment already verified',
+                ]);
+            }
+
+            // Update transaction status
+            $newStatus = $validated['status'] === 'successful' || $validated['status'] === 'completed'
+                ? 'completed'
+                : 'failed';
+
+            $transaction->update(['status' => $newStatus]);
+
+            // If successful, credit user's balance
+            if ($newStatus === 'completed') {
+                $user = Auth::user();
+                $user->balance += $transaction->amount;
+                $user->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $transaction,
+                'message' => 'Payment verified successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Payment verification failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment verification failed: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
