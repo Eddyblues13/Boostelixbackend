@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\AffiliateController;
 use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
@@ -76,6 +77,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/account/api-key', [AccountController::class, 'generateApiKey']);
     Route::put('/account/preferences', [AccountController::class, 'updatePreferences']);
     Route::put('/account/notifications', [AccountController::class, 'updateNotifications']);
+
+
+
+    // Affiliate Program Routes
+    Route::get('/affiliate', [AffiliateController::class, 'index']);
+    Route::post('/affiliate/generate-link', [AffiliateController::class, 'generateLink']);
+
+    // Affiliate Stats
+    Route::get('/affiliate/stats', [AffiliateController::class, 'getStats']);
+
+    // Payouts
+    Route::get('/affiliate/payouts', [AffiliateController::class, 'getPayouts']);
+    Route::post('/affiliate/request-payout', [AffiliateController::class, 'requestPayout']);
+
+    // Track referral visits
+    Route::get('/affiliate/track/{code}', [AffiliateController::class, 'trackVisit'])->withoutMiddleware(['auth:sanctum']);
 });
 
 // Callback route (no auth needed)
@@ -107,16 +124,22 @@ Route::prefix('admin')->group(function () {
         Route::post('/services/{id}/activate', [ManageServiceController::class, 'activate']);
         Route::post('/services/{id}/deactivate', [ManageServiceController::class, 'deactivate']);
         Route::post('/services/deactivate-multiple', [ManageServiceController::class, 'deactivateMultiple']);
+        Route::get('/orders', [ManageOrderController::class, 'allOrders']);
+
 
         // api providers
         Route::prefix('providers')->group(function () {
-            Route::apiResource('/', ApiProviderController::class);
+
+            Route::get('', [ApiProviderController::class, 'index']);
+            Route::post('', [ApiProviderController::class, 'store']);
+            Route::get('{id}', [ApiProviderController::class, 'show']);
+            Route::put('{id}', [ApiProviderController::class, 'update']);
+            Route::delete('{id}', [ApiProviderController::class, 'destroy']);
+
             Route::patch('/{id}/toggle-status', [ApiProviderController::class, 'toggleStatus']);
             Route::post('/{id}/sync-services', [ApiProviderController::class, 'syncServices']);
 
-            Route::get('/api-providers', [ApiProviderController::class, 'index']);
-            // Route::post('/api-providers', [ApiProviderController::class, 'store']);
-            // Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
+            Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
             Route::post('/services/import', [ApiProviderController::class, 'import']);
             Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
             Route::post('/services/all', [ApiProviderController::class, 'fetchAllServicesFromProvider']);
@@ -160,8 +183,6 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     Route::patch('/orders/{id}/status', [ManageOrderController::class, 'updateStatus']);
     Route::get('/categories', [ManageOrderController::class, 'getUserCategories']);
     Route::get('/services', [ManageOrderController::class, 'getUserServices']);
-    Route::get('/orders', [ManageOrderController::class, 'allOrders']);
-
 
 
     // Transaction management

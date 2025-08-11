@@ -6,6 +6,7 @@ use App\Models\Service;
 use App\Models\Category;
 use App\Models\ApiProvider;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Mews\Purifier\Facades\Purifier;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Http;
@@ -29,11 +30,11 @@ class ApiProviderController extends Controller
             'api_name' => 'required|string|max:255',
             'url' => 'required|url',
             'api_key' => 'required|string',
-            'balance' => 'nullable|numeric',
-            'currency' => 'required|string|in:USD,EUR,GBP,NGN',
-            'convention_rate' => 'required|numeric',
             'status' => 'required|boolean',
             'description' => 'nullable|string',
+            'balance' => 'nullable|numeric',       // Make optional
+            'currency' => 'nullable|string|max:3', // Make optional
+            'convention_rate' => 'nullable|numeric' // Make optional
         ]);
 
         if ($validator->fails()) {
@@ -43,13 +44,94 @@ class ApiProviderController extends Controller
             ], 422);
         }
 
-        $provider = ApiProvider::create($validator->validated());
+        $data = $validator->validated();
+
+        // Set defaults if not provided
+        $data['balance'] = $data['balance'] ?? 0;
+        $data['currency'] = $data['currency'] ?? 'USD';
+        $data['convention_rate'] = $data['convention_rate'] ?? 1.0;
+
+        // Save without API verification
+        $provider = ApiProvider::create($data);
 
         return response()->json([
             'status' => 'success',
             'data' => $provider
         ], 201);
     }
+
+    // public function store(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'api_name' => 'required|string|max:255',
+    //         'url' => 'required|url',
+    //         'api_key' => 'required|string',
+    //         'status' => 'required|boolean',
+    //         'description' => 'nullable|string',
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         Log::error('Validation failed:', $validator->errors()->toArray());
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'errors' => $validator->errors()
+    //         ], 422);
+    //     }
+
+
+    //     $data = $validator->validated();
+
+    //     try {
+    //         // Try to connect to the API provider
+    //         $response = Http::timeout(10)->post($data['url'], [
+    //             'key' => $data['api_key'],
+    //             'action' => 'balance'
+    //         ]);
+
+    //         if (!$response->successful()) {
+    //             return response()->json([
+    //                 'status' => 'error',
+    //                 'message' => 'Could not connect to API provider. The API may be down or the URL is invalid.'
+    //             ], $response->status());
+    //         }
+
+    //         $apiData = $response->json();
+
+    //         if (!isset($apiData['balance']) || !isset($apiData['currency'])) {
+    //             return response()->json([
+    //                 'status' => 'error',
+    //                 'message' => 'API responded, but required data (balance or currency) is missing. Please verify the API key or endpoint.'
+    //             ], 400);
+    //         }
+
+    //         $data['balance'] = $apiData['balance'];
+    //         $data['currency'] = $apiData['currency'];
+    //     } catch (\Illuminate\Http\Client\ConnectionException $e) {
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Unable to connect to the API provider. Please check the API URL.'
+    //         ], 503);
+    //     } catch (\Illuminate\Http\Client\RequestException $e) {
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Invalid request to the API provider. Please verify the URL or key.'
+    //         ], 400);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'status' => 'error',
+    //             'message' => 'Unexpected error: ' . $e->getMessage()
+    //         ], 500);
+    //     }
+
+    //     // Save the provider
+    //     $provider = ApiProvider::create($data);
+
+    //     return response()->json([
+    //         'status' => 'success',
+    //         'data' => $provider
+    //     ], 201);
+    // }
+
 
     public function show($id)
     {
@@ -92,14 +174,16 @@ class ApiProviderController extends Controller
 
     public function destroy($id)
     {
-        $provider = ApiProvider::findOrFail($id);
+        $provider = ApiProvider::find($id);
+        if (!$provider) {
+            return response()->json(['message' => 'Provider not found'], 404);
+        }
+
         $provider->delete();
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'API Provider deleted successfully'
-        ]);
+        return response()->json(['message' => 'Deleted successfully'], 200);
     }
+
 
     public function toggleStatus($id)
     {
@@ -116,15 +200,61 @@ class ApiProviderController extends Controller
     {
         $provider = ApiProvider::findOrFail($id);
 
-        // Implement your service synchronization logic here
-        // This would typically call the provider's API to get their services
+        $transferTime = null;
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Services synchronization initiated',
-            'data' => $provider
-        ]);
+        try {
+            // Make the API request with transfer stats
+            $response = Http::timeout(20)->withOptions([
+                'on_stats' => function (\GuzzleHttp\TransferStats $stats) use (&$transferTime) {
+                    $transferTime = $stats->getTransferTime();
+                },
+            ])->post($provider->url, [
+                'key' => $provider->api_key,
+                'action' => 'balance' // Adjust if your API uses a different action
+            ]);
+
+            if (!$response->successful()) {
+                throw new \Exception("API request failed with status: " . $response->status());
+            }
+
+            $apiData = $response->json();
+
+            // Validate the API response
+            if (!isset($apiData['balance'])) {
+                throw new \Exception("Balance not found in API response");
+            }
+
+            // Prepare update data
+            $updateData = [
+                'balance' => $apiData['balance'],
+            ];
+
+            if (isset($apiData['currency'])) {
+                $updateData['currency'] = $apiData['currency'];
+            }
+
+            if (isset($apiData['rate'])) {
+                $updateData['convention_rate'] = $apiData['rate'];
+            }
+
+            $provider->update($updateData);
+
+            // Optional: sync related services
+            // $this->syncProviderServices($provider, $apiData);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Provider details synchronized successfully',
+                'data' => $provider->refresh()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Synchronization failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
+
 
     // public function index()
     // {
@@ -294,7 +424,6 @@ class ApiProviderController extends Controller
                 'message' => 'Services fetched successfully.',
                 'data' => $services
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
@@ -502,6 +631,4 @@ class ApiProviderController extends Controller
             'message' => 'Selected services imported successfully.'
         ]);
     }
-
-
 }
