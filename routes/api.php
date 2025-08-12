@@ -154,13 +154,11 @@ Route::prefix('admin')->group(function () {
             Route::post('/services/save', [ApiProviderController::class, 'importServices']);
         });
 
-<<<<<<< HEAD
            // Manageusertickets
            Route::get('/tickets', [ManageTicketController::class, 'index']);
            Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
            Route::put('/tickets/{id}/status', [ManageTicketController::class, 'updateStatus']);
            Route::delete('/tickets/{id}', [ManageTicketController::class, 'destroy']);
-=======
         // Transaction Management Routes
         Route::prefix('transactions')->group(function () {
             Route::get('/', [TransactionController::class, 'index']);
@@ -171,7 +169,6 @@ Route::prefix('admin')->group(function () {
             Route::delete('/{transaction}', [TransactionController::class, 'destroy']);
             Route::patch('/{transaction}/status', [TransactionController::class, 'changeStatus']);
         });
->>>>>>> c074f855edd4c5669f6da628d1f2bf1fa0af026f
     });
 });
 
