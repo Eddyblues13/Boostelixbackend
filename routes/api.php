@@ -17,6 +17,8 @@ use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
+use App\Http\Controllers\API\Admin\TransactionController;
+use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
@@ -102,6 +104,12 @@ Route::prefix('admin')->group(function () {
         Route::get('/me', [AdminAuthController::class, 'me']);
         Route::get('dashboard', [AdminController::class, 'dashboard']);
 
+        // Admin Settings Endpoints
+        Route::get('/settings', [AdminSettingsController::class, 'index']);
+        Route::put('/settings/profile', [AdminSettingsController::class, 'updateProfile']);
+        Route::put('/settings/security', [AdminSettingsController::class, 'updateSecurity']);
+        Route::get('/settings/activity', [AdminSettingsController::class, 'getActivityLogs']);
+
         // Category management
         Route::post('/categories', [ManageCategoryController::class, 'store']);
         Route::put('/categories/{id}', [ManageCategoryController::class, 'update']);
@@ -137,6 +145,17 @@ Route::prefix('admin')->group(function () {
             Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
             Route::post('/services/all', [ApiProviderController::class, 'fetchAllServicesFromProvider']);
             Route::post('/services/save', [ApiProviderController::class, 'importServices']);
+        });
+
+        // Transaction Management Routes
+        Route::prefix('transactions')->group(function () {
+            Route::get('/', [TransactionController::class, 'index']);
+            Route::get('/stats', [TransactionController::class, 'stats']);
+            Route::post('/', [TransactionController::class, 'store']);
+            Route::get('/{transaction}', [TransactionController::class, 'show']);
+            Route::put('/{transaction}', [TransactionController::class, 'update']);
+            Route::delete('/{transaction}', [TransactionController::class, 'destroy']);
+            Route::patch('/{transaction}/status', [TransactionController::class, 'changeStatus']);
         });
     });
 });
