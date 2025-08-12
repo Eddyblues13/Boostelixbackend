@@ -16,12 +16,14 @@ use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
+use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
 use App\Http\Controllers\API\Admin\TransactionController;
 use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
-use App\Http\Controllers\Api\Admin\ManageCategoryController;
+use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
+
 
 
 
@@ -51,6 +53,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/history', [OrderController::class, 'history']);
 
+     // Ticket endpoint
+    Route::post('/tickets', [TicketController::class, 'store']);
+
+       // Ticket History endpoint
+    Route::get('/ticketshistory', [TicketController::class, 'index']);
 
     // Payment endpoints
     Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
@@ -147,6 +154,11 @@ Route::prefix('admin')->group(function () {
             Route::post('/services/save', [ApiProviderController::class, 'importServices']);
         });
 
+           // Manageusertickets
+           Route::get('/tickets', [ManageTicketController::class, 'index']);
+           Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
+           Route::put('/tickets/{id}/status', [ManageTicketController::class, 'updateStatus']);
+           Route::delete('/tickets/{id}', [ManageTicketController::class, 'destroy']);
         // Transaction Management Routes
         Route::prefix('transactions')->group(function () {
             Route::get('/', [TransactionController::class, 'index']);
