@@ -130,8 +130,10 @@ class PaymentController extends Controller
                 throw new \Exception('Transaction not found');
             }
 
+            $normalizedStatus = strtolower($status);
+
             // Handle all possible statuses
-            if ($status === 'successful' || $status === 'completed') {
+            if ($normalizedStatus === 'successful' || $normalizedStatus === 'completed') {
                 if ($payment->payment_method === 'flutterwave') {
                     $verification = $this->verifyFlutterwavePayment($reference);
 

@@ -10,130 +10,185 @@ use App\Models\User;
 use App\Models\Transaction;
 use App\Models\Ticket;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Collection;
 
 class AdminController extends Controller
 {
-    public function dashboard()
+    public function dashboard(): JsonResponse
     {
         try {
-            $last30 = date('Y-m-d', strtotime('-30 days'));
+            $last30Days = Carbon::now()->subDays(30)->toDateString();
 
-            $data['totalAmountReceived'] = Fund::where('status', 1)->sum('amount');
-            $data['totalOrder'] = Order::count();
-            $data['totalProviders'] = ApiProvider::count();
-
-            $users = User::selectRaw('COUNT(id) AS totalUser')
-                ->selectRaw('SUM(balance) AS totalUserBalance')
-                ->selectRaw('COUNT((CASE WHEN created_at >= CURDATE() THEN id END)) AS todayJoin')
-                ->get()->makeHidden(['fullname', 'mobile'])->toArray();
-
-            $data['userRecord'] = collect($users)->collapse();
-
-            $transactions = Transaction::selectRaw('SUM((CASE WHEN remarks LIKE "DEPOSIT Via%" AND created_at >= ? THEN charge WHEN remarks LIKE "Place order%" AND created_at >= ? THEN amount END)) AS profit_30_days', [$last30, $last30])
-                ->selectRaw('SUM((CASE WHEN remarks LIKE "DEPOSIT Via%" AND created_at >= CURDATE() THEN charge WHEN remarks LIKE "Place order%" AND created_at >= CURDATE() THEN amount END)) AS profit_today')
-                ->get()->toArray();
-            $data['transactionProfit'] = collect($transactions)->collapse();
-
-            $tickets = Ticket::where('created_at', '>', Carbon::now()->subDays(30))
-                ->selectRaw('count(CASE WHEN status = 3 THEN status END) AS closed')
-                ->selectRaw('count(CASE WHEN status = 2 THEN status END) AS replied')
-                ->selectRaw('count(CASE WHEN status = 1 THEN status END) AS answered')
-                ->selectRaw('count(CASE WHEN status = 0 THEN status END) AS pending')
-                ->get()->toArray();
-            $data['tickets'] = collect($tickets)->collapse();
-
-            $orders = Order::where('created_at', '>', Carbon::now()->subDays(30))
-                ->selectRaw('count(id) as totalOrder')
-                ->selectRaw('count(CASE WHEN status = "completed" THEN status END) AS completed')
-                ->selectRaw('count(CASE WHEN status = "processing" THEN status END) AS processing')
-                ->selectRaw('count(CASE WHEN status = "pending" THEN status END) AS pending')
-                ->selectRaw('count(CASE WHEN status = "progress" THEN status END) AS inProgress')
-                ->selectRaw('count(CASE WHEN status = "partial" THEN status END) AS partial')
-                ->selectRaw('count(CASE WHEN status = "canceled" THEN status END) AS canceled')
-                ->selectRaw('count(CASE WHEN status = "refunded" THEN status END) AS refunded')
-                ->selectRaw('COUNT((CASE WHEN created_at >= CURDATE() THEN id END)) AS todaysOrder')
-                ->get()->map(function ($value) {
-                    return [
-                        'records' => [
-                            'totalOrder' => $value->totalOrder,
-                            'todaysOrder' => $value->todaysOrder,
-                            'complete' => $value->completed,
-                            'processing' => $value->processing,
-                            'pending' => $value->pending,
-                            'inProgress' => $value->inProgress,
-                            'partial' => $value->partial,
-                            'canceled' => $value->canceled,
-                            'refunded' => $value->refunded,
-                        ],
-                        'percent' => [
-                            'complete' => ($value->completed) ? round(($value->completed / $value->totalOrder) * 100, 2) : 0,
-                            'processing' => ($value->processing) ? round(($value->processing / $value->totalOrder) * 100, 2) : 0,
-                            'pending' => ($value->pending) ? round(($value->pending / $value->totalOrder) * 100, 2) : 0,
-                            'inProgress' => ($value->inProgress) ? round(($value->inProgress / $value->totalOrder) * 100, 2) : 0,
-                            'partial' => ($value->partial) ? round(($value->partial / $value->totalOrder) * 100, 2) : 0,
-                            'canceled' => ($value->canceled) ? round(($value->canceled / $value->totalOrder) * 100, 2) : 0,
-                            'refunded' => ($value->refunded) ? round(($value->refunded / $value->totalOrder) * 100, 2) : 0,
-                        ]
-                    ];
-                });
-
-            $data['orders'] = collect($orders)->collapse();
-
-            $data['bestSale'] = Order::with('service')
-                ->whereHas('service')
-                ->selectRaw('service_id, COUNT(service_id) as count, sum(quantity) as quantity')
-                ->groupBy('service_id')->orderBy('count', 'DESC')->take(10)->get();
-
-            // Fixed order statistics query
-            $orderStatistics = Order::where('created_at', '>', Carbon::now()->subDays(30))
-                ->selectRaw('count(CASE WHEN status = "completed" THEN status END) AS completed')
-                ->selectRaw('count(CASE WHEN status = "processing" THEN status END) AS processing')
-                ->selectRaw('count(CASE WHEN status = "pending" THEN status END) AS pending')
-                ->selectRaw('count(CASE WHEN status = "progress" THEN status END) AS progress')
-                ->selectRaw('count(CASE WHEN status = "partial" THEN status END) AS partial')
-                ->selectRaw('count(CASE WHEN status = "canceled" THEN status END) AS canceled')
-                ->selectRaw('count(CASE WHEN status = "refunded" THEN status END) AS refunded')
-                ->selectRaw('DATE_FORMAT(created_at, "%d %b") as date')
-                ->orderBy('date')
-                ->groupBy('date')
-                ->get();
-
-            $statistics['date'] = [];
-            $statistics['completed'] = [];
-            $statistics['processing'] = [];
-            $statistics['pending'] = [];
-            $statistics['progress'] = [];
-            $statistics['partial'] = [];
-            $statistics['canceled'] = [];
-            $statistics['refunded'] = [];
-
-            foreach ($orderStatistics as $val) {
-                array_push($statistics['date'], trim($val->date));
-                array_push($statistics['completed'], ($val->completed != null) ? $val->completed : 0);
-                array_push($statistics['processing'], ($val->processing != null) ? $val->processing : 0);
-                array_push($statistics['pending'], ($val->pending != null) ? $val->pending : 0);
-                array_push($statistics['progress'], ($val->progress != null) ? $val->progress : 0);
-                array_push($statistics['partial'], ($val->partial != null) ? $val->partial : 0);
-                array_push($statistics['canceled'], ($val->canceled != null) ? $val->canceled : 0);
-                array_push($statistics['refunded'], ($val->refunded != null) ? $val->refunded : 0);
-            }
-
-            $data['latestUser'] = User::latest()->limit(5)->get();
+            $data = [
+                'totalAmountReceived' => Fund::where('status', 1)->sum('amount'),
+                'totalOrder' => Order::count(),
+                'totalProviders' => ApiProvider::count(),
+                'userRecord' => $this->getUserStatistics(),
+                'transactionProfit' => $this->getTransactionProfit($last30Days),
+                'tickets' => $this->getTicketStatistics(),
+                'orders' => $this->getOrderStatistics(),
+                'bestSale' => $this->getBestSellingServices(),
+                'latestUser' => User::latest()->limit(5)->get(),
+            ];
 
             return response()->json([
                 'success' => true,
                 'data' => $data,
-                'statistics' => $statistics
+                'statistics' => $this->getOrderStatisticsGraph(),
             ]);
         } catch (\Exception $e) {
             Log::error('Dashboard Error: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Server Error',
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    private function getUserStatistics(): array
+    {
+        return User::query()
+            ->selectRaw('COUNT(id) AS totalUser')
+            ->selectRaw('SUM(balance) AS totalUserBalance')
+            ->selectRaw('COUNT((CASE WHEN created_at >= CURDATE() THEN id END)) AS todayJoin')
+            ->first()
+            ->toArray();
+    }
+
+    private function getTransactionProfit(string $last30Days): array
+    {
+        return Transaction::query()
+            ->selectRaw(
+                'SUM(CASE 
+                WHEN description LIKE "DEPOSIT Via%" AND created_at >= ? 
+                    THEN charge 
+                WHEN description LIKE "Place order%" AND created_at >= ? 
+                    THEN amount 
+                ELSE 0 
+            END) AS profit_30_days',
+                [$last30Days, $last30Days]
+            )
+            ->selectRaw(
+                'SUM(CASE 
+                WHEN description LIKE "DEPOSIT Via%" AND created_at >= CURDATE() 
+                    THEN charge 
+                WHEN description LIKE "Place order%" AND created_at >= CURDATE() 
+                    THEN amount 
+                ELSE 0 
+            END) AS profit_today'
+            )
+            ->first()
+            ->toArray();
+    }
+
+
+    private function getTicketStatistics(): array
+    {
+        return Ticket::query()
+            ->where('created_at', '>', Carbon::now()->subDays(30))
+            ->selectRaw('count(CASE WHEN status = 3 THEN status END) AS closed')
+            ->selectRaw('count(CASE WHEN status = 2 THEN status END) AS replied')
+            ->selectRaw('count(CASE WHEN status = 1 THEN status END) AS answered')
+            ->selectRaw('count(CASE WHEN status = 0 THEN status END) AS pending')
+            ->first()
+            ->toArray();
+    }
+
+    private function getOrderStatistics(): array
+    {
+        $orderStats = Order::query()
+            ->where('created_at', '>', Carbon::now()->subDays(30))
+            ->selectRaw('count(id) as totalOrder')
+            ->selectRaw('count(CASE WHEN status = "completed" THEN status END) AS completed')
+            ->selectRaw('count(CASE WHEN status = "processing" THEN status END) AS processing')
+            ->selectRaw('count(CASE WHEN status = "pending" THEN status END) AS pending')
+            ->selectRaw('count(CASE WHEN status = "progress" THEN status END) AS inProgress')
+            ->selectRaw('count(CASE WHEN status = "partial" THEN status END) AS partial')
+            ->selectRaw('count(CASE WHEN status = "canceled" THEN status END) AS canceled')
+            ->selectRaw('count(CASE WHEN status = "refunded" THEN status END) AS refunded')
+            ->selectRaw('COUNT((CASE WHEN created_at >= CURDATE() THEN id END)) AS todaysOrder')
+            ->first();
+
+        return [
+            'records' => $orderStats->toArray(),
+            'percent' => $this->calculateOrderPercentages($orderStats)
+        ];
+    }
+
+    private function calculateOrderPercentages(Order $orderStats): array
+    {
+        $total = $orderStats->totalOrder ?: 1;
+
+        return [
+            'complete' => round(($orderStats->completed / $total) * 100, 2),
+            'processing' => round(($orderStats->processing / $total) * 100, 2),
+            'pending' => round(($orderStats->pending / $total) * 100, 2),
+            'inProgress' => round(($orderStats->inProgress / $total) * 100, 2),
+            'partial' => round(($orderStats->partial / $total) * 100, 2),
+            'canceled' => round(($orderStats->canceled / $total) * 100, 2),
+            'refunded' => round(($orderStats->refunded / $total) * 100, 2),
+        ];
+    }
+
+    private function getBestSellingServices(): Collection
+    {
+        return Order::with('service')
+            ->whereHas('service')
+            ->selectRaw('service_id, COUNT(service_id) as count, sum(quantity) as quantity')
+            ->groupBy('service_id')
+            ->orderBy('count', 'DESC')
+            ->take(10)
+            ->get();
+    }
+
+    private function getOrderStatisticsGraph(): array
+    {
+        $orderStatistics = Order::query()
+            ->where('created_at', '>', Carbon::now()->subDays(30))
+            ->selectRaw('count(CASE WHEN status = "completed" THEN status END) AS completed')
+            ->selectRaw('count(CASE WHEN status = "processing" THEN status END) AS processing')
+            ->selectRaw('count(CASE WHEN status = "pending" THEN status END) AS pending')
+            ->selectRaw('count(CASE WHEN status = "progress" THEN status END) AS progress')
+            ->selectRaw('count(CASE WHEN status = "partial" THEN status END) AS partial')
+            ->selectRaw('count(CASE WHEN status = "canceled" THEN status END) AS canceled')
+            ->selectRaw('count(CASE WHEN status = "refunded" THEN status END) AS refunded')
+            ->selectRaw('DATE_FORMAT(created_at, "%d %b") as date')
+            ->orderBy('date')
+            ->groupBy('date')
+            ->get();
+
+        return $this->formatGraphData($orderStatistics);
+    }
+
+    private function formatGraphData(Collection $orderStatistics): array
+    {
+        $statistics = [
+            'date' => [],
+            'completed' => [],
+            'processing' => [],
+            'pending' => [],
+            'progress' => [],
+            'partial' => [],
+            'canceled' => [],
+            'refunded' => [],
+        ];
+
+        $orderStatistics->each(function ($item) use (&$statistics) {
+            $statistics['date'][] = trim($item->date);
+            $statistics['completed'][] = $item->completed ?? 0;
+            $statistics['processing'][] = $item->processing ?? 0;
+            $statistics['pending'][] = $item->pending ?? 0;
+            $statistics['progress'][] = $item->progress ?? 0;
+            $statistics['partial'][] = $item->partial ?? 0;
+            $statistics['canceled'][] = $item->canceled ?? 0;
+            $statistics['refunded'][] = $item->refunded ?? 0;
+        });
+
+        return $statistics;
     }
 }
