@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\Admin\ManageOrderController;
 use App\Http\Controllers\API\Admin\TransactionController;
 use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
+use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
 use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
 
@@ -58,6 +59,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
        // Ticket History endpoint
     Route::get('/ticketshistory', [TicketController::class, 'index']);
+
+
+      // ServiceUpdate History endpoint
+    Route::get('/user-service-updates', [ManageServiceUpdateController::class, 'index']);
 
     // Payment endpoints
     Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
@@ -159,8 +164,13 @@ Route::prefix('admin')->group(function () {
            Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
            Route::put('/tickets/{id}/status', [ManageTicketController::class, 'updateStatus']);
            Route::delete('/tickets/{id}', [ManageTicketController::class, 'destroy']);
-        // Transaction Management Routes
-        Route::prefix('transactions')->group(function () {
+
+           // Manage Service Controller
+           Route::post('/service-updates', [ManageServiceUpdateController::class, 'UpdateService']);
+           Route::get('/service-update-history', [ManageServiceUpdateController::class, 'ServiceUpdateHistory']);
+
+           // Transaction Management Routes
+            Route::prefix('transactions')->group(function () {
             Route::get('/', [TransactionController::class, 'index']);
             Route::get('/stats', [TransactionController::class, 'stats']);
             Route::post('/', [TransactionController::class, 'store']);
