@@ -23,14 +23,13 @@ use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
-
-
-
+use App\Http\Controllers\API\CurrencyController;
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
 
 Route::get('/all-services', [ServiceController::class, 'allServices']);
+Route::get('/currencies', [CurrencyController::class, 'fetchCurrencies']);
 
 
 
