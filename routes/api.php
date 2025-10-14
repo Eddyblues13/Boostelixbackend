@@ -1,12 +1,14 @@
 <?php
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\LoginController;
 use App\Http\Controllers\API\OrderController;
+use App\Http\Controllers\Api\SmmApiController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
@@ -98,6 +100,53 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // Callback route (no auth needed)
 Route::get('/payment/callback', [PaymentController::class, 'paymentCallback']);
+
+
+
+// routes/api.php
+Route::get('/test-db', function () {
+    try {
+        DB::connection()->getPdo();
+        return response()->json([
+            'status' => 'success',
+            'message' => 'DB connection working',
+            'tables' => DB::select('SHOW TABLES')
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => 'DB connection failed',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+
+
+Route::prefix('v2')->group(function () {
+    // Authentication middleware for API endpoints
+    Route::middleware(['auth:api', 'throttle:60,1'])->group(function () {
+        // Service list
+        Route::post('/services', [SmmApiController::class, 'getServices']);
+
+        // Order management
+        Route::post('/orders', [SmmApiController::class, 'placeOrder']);
+        Route::post('/orders/status', [SmmApiController::class, 'checkOrderStatus']);
+        Route::post('/orders/multi-status', [SmmApiController::class, 'checkMultiOrderStatus']);
+        Route::post('/orders/history', [SmmApiController::class, 'getOrderHistory']);
+
+        // Refill
+        Route::post('/refill', [SmmApiController::class, 'createRefill']);
+
+        // Balance
+        Route::post('/balance', [SmmApiController::class, 'getBalance']);
+    });
+
+    // API key generation
+    Route::post('/generate-key', [SmmApiController::class, 'generateApiKey'])
+        ->middleware('auth:sanctum');
+});
 
 
 
