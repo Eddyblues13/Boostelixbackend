@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AdminToken;
+use App\Http\Middleware\VerifyApiKey;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
 
-        $middleware->alias(['admin.token' => AdminToken::class]);
+        $middleware->alias(['admin.token' => AdminToken::class, 'verify.api.key' => VerifyApiKey::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
