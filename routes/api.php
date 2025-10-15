@@ -65,16 +65,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // ServiceUpdate History endpoint
     Route::get('/user-service-updates', [ManageServiceUpdateController::class, 'index']);
 
-    // Payment endpoints
-    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
-    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
-    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
-    Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
-    Route::post('/payment/verify', [PaymentController::class, 'paymentCallback']);
-    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
-
-
-
 
 
 
@@ -89,7 +79,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/account/api-key', [AccountController::class, 'generateApiKey']);
     Route::put('/account/preferences', [AccountController::class, 'updatePreferences']);
     Route::put('/account/notifications', [AccountController::class, 'updateNotifications']);
-
 
 
     // Affiliate Program Routes
@@ -107,10 +96,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/affiliate/track/{code}', [AffiliateController::class, 'trackVisit'])->withoutMiddleware(['auth:sanctum']);
 });
 
-// // Callback route (no auth needed)
-// Route::get('/payment/callback', [PaymentController::class, 'paymentCallback']);
 
-
+// Payment endpoints
+Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
+Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
+Route::post('/payment/verify', [PaymentController::class, 'verifyPayment']); // ✅ Correct method name
+Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
 
 // routes/api.php
 Route::get('/test-db', function () {
