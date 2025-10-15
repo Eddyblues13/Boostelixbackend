@@ -12,20 +12,21 @@ use App\Http\Controllers\Api\SmmApiController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\AffiliateController;
+use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
-use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
 use App\Http\Controllers\API\Admin\TransactionController;
+use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
-use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
-use App\Http\Controllers\Api\Admin\ManageTicketController;
+use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
-use App\Http\Controllers\API\CurrencyController;
+use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
@@ -165,7 +166,7 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['auth:sanctum', 'admin.token'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
-        Route::get('dashboard', [App\Http\Controllers\Api\Admin\AdminController::class, 'dashboard']);
+        Route::get('/dashboard', [AdminController::class, 'dashboard']);
 
         // Admin Settings Endpoints
         Route::get('/settings', [AdminSettingsController::class, 'index']);
