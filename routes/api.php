@@ -12,20 +12,21 @@ use App\Http\Controllers\Api\SmmApiController;
 use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\AffiliateController;
+use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
-use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
 use App\Http\Controllers\API\Admin\TransactionController;
+use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
-use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
-use App\Http\Controllers\Api\Admin\ManageTicketController;
+use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
-use App\Http\Controllers\API\CurrencyController;
+use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
@@ -64,16 +65,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // ServiceUpdate History endpoint
     Route::get('/user-service-updates', [ManageServiceUpdateController::class, 'index']);
 
-    // Payment endpoints
-    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
-    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
-    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
-    Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
-    Route::post('/payment/verify', [PaymentController::class, 'paymentCallback']);
-    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
-
-
-
 
 
 
@@ -90,7 +81,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/account/notifications', [AccountController::class, 'updateNotifications']);
 
 
-
     // Affiliate Program Routes
     Route::get('/affiliate', [AffiliateController::class, 'index']);
     Route::post('/affiliate/generate-link', [AffiliateController::class, 'generateLink']);
@@ -104,10 +94,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Track referral visits
     Route::get('/affiliate/track/{code}', [AffiliateController::class, 'trackVisit'])->withoutMiddleware(['auth:sanctum']);
+
+
+
+    // Payment endpoints
+    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
+    Route::post('/payment/verify', [PaymentController::class, 'verifyPayment']);
+    Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
+    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
 });
 
-// // Callback route (no auth needed)
-// Route::get('/payment/callback', [PaymentController::class, 'paymentCallback']);
+
 
 
 
@@ -165,7 +162,7 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['auth:sanctum', 'admin.token'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
-        Route::get('dashboard', [App\Http\Controllers\Api\Admin\AdminController::class, 'dashboard']);
+        Route::get('/dashboard', [AdminController::class, 'dashboard']);
 
         // Admin Settings Endpoints
         Route::get('/settings', [AdminSettingsController::class, 'index']);

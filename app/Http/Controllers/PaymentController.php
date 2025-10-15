@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Controller;
 use GuzzleHttp\Client;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -102,7 +103,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * Handle payment callback from payment gatewayyy (Webhook).
+     * Handle payment callback from payment gateway (Webhook).
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
@@ -110,7 +111,7 @@ class PaymentController extends Controller
     public function handleCallback(Request $request)
     {
         try {
-            Log::info('Payment callback received', ['request' => $request->all()]);
+            Log::info('🔄 Payment callback received', ['request' => $request->all()]);
 
             $transactionId = $request->input('transaction_id');
             $txRef = $request->input('tx_ref');
@@ -129,11 +130,13 @@ class PaymentController extends Controller
                 ->first();
 
             if (!$payment) {
+                Log::error('❌ Transaction not found for reference: ' . $reference);
                 throw new \Exception('Transaction not found for reference: ' . $reference);
             }
 
             // If already completed, return success
             if ($payment->status === 'completed') {
+                Log::info('✅ Payment already completed', ['transaction_id' => $payment->id]);
                 return response()->json([
                     'success' => true,
                     'payment' => $payment,
@@ -149,6 +152,7 @@ class PaymentController extends Controller
                     $verification = $this->verifyFlutterwavePayment($reference);
 
                     if (!$verification || $verification['status'] !== 'success') {
+                        Log::error('❌ Flutterwave verification failed', ['response' => $verification]);
                         throw new \Exception('Payment verification failed');
                     }
 
@@ -157,7 +161,7 @@ class PaymentController extends Controller
                     $amountPaid = $verification['data']['amount'] ?? 0;
                     $expectedAmount = $payment->amount;
 
-                    Log::info('Flutterwave verification result', [
+                    Log::info('🔍 Flutterwave verification result', [
                         'flutterwave_status' => $flutterwaveStatus,
                         'amount_paid' => $amountPaid,
                         'expected_amount' => $expectedAmount
@@ -185,16 +189,18 @@ class PaymentController extends Controller
                     $user->balance += $payment->amount;
                     $user->save();
 
-                    Log::info('Payment completed successfully', [
+                    Log::info('💰 Payment completed successfully', [
                         'transaction_id' => $payment->id,
                         'user_id' => $user->id,
-                        'amount' => $payment->amount
+                        'amount' => $payment->amount,
+                        'new_balance' => $user->balance
                     ]);
                 } elseif (in_array($normalizedStatus, ['cancelled', 'failed'])) {
                     $payment->update(['status' => 'failed']);
-                    Log::info('Payment failed', ['transaction_id' => $payment->id]);
+                    Log::info('❌ Payment failed', ['transaction_id' => $payment->id]);
                 } else {
                     $payment->update(['status' => 'pending']);
+                    Log::info('⏳ Payment pending', ['transaction_id' => $payment->id, 'status' => $normalizedStatus]);
                 }
             } else {
                 // For Paystack and other payment methods
@@ -206,16 +212,18 @@ class PaymentController extends Controller
                     $user->balance += $payment->amount;
                     $user->save();
 
-                    Log::info('Payment completed successfully', [
+                    Log::info('💰 Payment completed successfully', [
                         'transaction_id' => $payment->id,
                         'user_id' => $user->id,
-                        'amount' => $payment->amount
+                        'amount' => $payment->amount,
+                        'new_balance' => $user->balance
                     ]);
                 } elseif (in_array($normalizedStatus, ['cancelled', 'failed'])) {
                     $payment->update(['status' => 'failed']);
-                    Log::info('Payment failed', ['transaction_id' => $payment->id]);
+                    Log::info('❌ Payment failed', ['transaction_id' => $payment->id]);
                 } else {
                     $payment->update(['status' => 'pending']);
+                    Log::info('⏳ Payment pending', ['transaction_id' => $payment->id, 'status' => $normalizedStatus]);
                 }
             }
 
@@ -225,7 +233,7 @@ class PaymentController extends Controller
                 'message' => 'Payment status updated successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Payment callback failed: ' . $e->getMessage(), [
+            Log::error('💥 Payment callback failed: ' . $e->getMessage(), [
                 'request' => $request->all(),
                 'exception' => $e
             ]);
@@ -246,6 +254,8 @@ class PaymentController extends Controller
     public function verifyPayment(Request $request)
     {
         try {
+            Log::info('🔍 Frontend payment verification request', ['request' => $request->all()]);
+
             $validated = $request->validate([
                 'transaction_id' => 'required|string',
                 'status' => 'required|string|in:successful,completed,failed,cancelled,pending',
@@ -256,6 +266,10 @@ class PaymentController extends Controller
                 ->first();
 
             if (!$transaction) {
+                Log::error('❌ Transaction not found for user', [
+                    'transaction_id' => $validated['transaction_id'],
+                    'user_id' => Auth::id()
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Transaction not found',
@@ -264,6 +278,7 @@ class PaymentController extends Controller
 
             // If already verified, return current status
             if ($transaction->status === 'completed') {
+                Log::info('✅ Payment already verified', ['transaction_id' => $transaction->id]);
                 return response()->json([
                     'success' => true,
                     'data' => $transaction,
@@ -271,16 +286,29 @@ class PaymentController extends Controller
                 ]);
             }
 
+            Log::info('🔄 Processing payment verification', [
+                'transaction_id' => $transaction->id,
+                'current_status' => $transaction->status,
+                'requested_status' => $validated['status']
+            ]);
+
             // For Flutterwave, verify with their API
             if (
                 $transaction->payment_method === 'flutterwave' &&
                 ($validated['status'] === 'successful' || $validated['status'] === 'completed')
             ) {
 
+                Log::info('🔍 Verifying Flutterwave payment', ['transaction_id' => $validated['transaction_id']]);
+
                 $verification = $this->verifyFlutterwavePayment($validated['transaction_id']);
 
                 if ($verification && $verification['status'] === 'success') {
                     $flutterwaveStatus = strtolower($verification['data']['status'] ?? '');
+
+                    Log::info('🔍 Flutterwave verification result', [
+                        'flutterwave_status' => $flutterwaveStatus,
+                        'transaction_id' => $validated['transaction_id']
+                    ]);
 
                     if ($flutterwaveStatus === 'successful') {
                         $transaction->update([
@@ -293,19 +321,29 @@ class PaymentController extends Controller
                         $user->balance += $transaction->amount;
                         $user->save();
 
-                        Log::info('Payment verified and completed', [
+                        Log::info('💰 Payment verified and completed', [
                             'transaction_id' => $transaction->id,
-                            'user_id' => $user->id
+                            'user_id' => $user->id,
+                            'amount' => $transaction->amount,
+                            'new_balance' => $user->balance
                         ]);
                     } else {
                         $transaction->update(['status' => 'failed']);
+                        Log::info('❌ Flutterwave payment failed', [
+                            'transaction_id' => $transaction->id,
+                            'flutterwave_status' => $flutterwaveStatus
+                        ]);
                     }
                 } else {
                     $transaction->update(['status' => 'failed']);
+                    Log::error('❌ Flutterwave verification failed', [
+                        'transaction_id' => $transaction->id,
+                        'verification_response' => $verification
+                    ]);
                 }
             } else {
                 // For other payment methods or statuses
-                $newStatus = $validated['status'] === 'successful' || $validated['status'] === 'completed'
+                $newStatus = ($validated['status'] === 'successful' || $validated['status'] === 'completed')
                     ? 'completed'
                     : 'failed';
 
@@ -316,8 +354,23 @@ class PaymentController extends Controller
                     $user = Auth::user();
                     $user->balance += $transaction->amount;
                     $user->save();
+
+                    Log::info('💰 Payment completed via direct update', [
+                        'transaction_id' => $transaction->id,
+                        'user_id' => $user->id,
+                        'amount' => $transaction->amount,
+                        'new_balance' => $user->balance
+                    ]);
                 }
+
+                Log::info('📝 Payment status updated directly', [
+                    'transaction_id' => $transaction->id,
+                    'new_status' => $newStatus
+                ]);
             }
+
+            // Reload the transaction to get updated data
+            $transaction->refresh();
 
             return response()->json([
                 'success' => true,
@@ -325,7 +378,12 @@ class PaymentController extends Controller
                 'message' => 'Payment verified successfully',
             ]);
         } catch (\Exception $e) {
-            Log::error('Payment verification failed: ' . $e->getMessage());
+            Log::error('💥 Payment verification failed: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'user_id' => Auth::id(),
+                'exception' => $e
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Payment verification failed: ' . $e->getMessage(),
@@ -367,7 +425,7 @@ class PaymentController extends Controller
                 throw new \RuntimeException('Flutterwave secret key is not configured');
             }
 
-            Log::debug('Attempting Flutterwave payment', ['data' => $data]);
+            Log::debug('🔗 Creating Flutterwave payment link', ['data' => $data]);
 
             $client = new Client();
             $response = $client->post('https://api.flutterwave.com/v3/payments', [
@@ -381,13 +439,18 @@ class PaymentController extends Controller
             $body = json_decode((string)$response->getBody(), true);
 
             if (!isset($body['status']) || $body['status'] !== 'success') {
-                Log::error('Flutterwave payment failed', ['response' => $body]);
+                Log::error('❌ Flutterwave payment failed', ['response' => $body]);
                 throw new \RuntimeException($body['message'] ?? 'Flutterwave payment failed');
             }
 
+            Log::info('✅ Flutterwave payment link created', [
+                'transaction_ref' => $data['tx_ref'],
+                'payment_url' => $body['data']['link'] ?? null
+            ]);
+
             return $body['data']['link'] ?? null;
         } catch (\Exception $e) {
-            Log::error('Flutterwave payment error: ' . $e->getMessage());
+            Log::error('💥 Flutterwave payment error: ' . $e->getMessage());
             throw $e;
         }
     }
@@ -425,13 +488,18 @@ class PaymentController extends Controller
             $body = json_decode($response->getBody(), true);
 
             if (!$body['status']) {
-                Log::error('Paystack payment failed', ['response' => $body]);
+                Log::error('❌ Paystack payment failed', ['response' => $body]);
                 throw new \RuntimeException($body['message'] ?? 'Paystack payment failed');
             }
 
+            Log::info('✅ Paystack payment link created', [
+                'transaction_ref' => $data['tx_ref'],
+                'payment_url' => $body['data']['authorization_url'] ?? null
+            ]);
+
             return $body['data']['authorization_url'] ?? null;
         } catch (\Exception $e) {
-            Log::error('Paystack payment error: ' . $e->getMessage());
+            Log::error('💥 Paystack payment error: ' . $e->getMessage());
             throw $e;
         }
     }
@@ -451,6 +519,8 @@ class PaymentController extends Controller
                 throw new \RuntimeException('Flutterwave secret key is not configured');
             }
 
+            Log::debug('🔍 Verifying Flutterwave payment', ['transaction_id' => $transactionId]);
+
             $client = new Client();
             $response = $client->get("https://api.flutterwave.com/v3/transactions/{$transactionId}/verify", [
                 'headers' => [
@@ -462,13 +532,20 @@ class PaymentController extends Controller
             $body = json_decode($response->getBody(), true);
 
             if (!isset($body['status']) || $body['status'] !== 'success') {
-                Log::error('Flutterwave verification failed', ['response' => $body]);
+                Log::error('❌ Flutterwave verification failed', ['response' => $body]);
                 throw new \RuntimeException($body['message'] ?? 'Payment verification failed');
             }
 
+            Log::info('✅ Flutterwave payment verified successfully', [
+                'transaction_id' => $transactionId,
+                'status' => $body['data']['status'] ?? 'unknown'
+            ]);
+
             return $body;
         } catch (\Exception $e) {
-            Log::error('Flutterwave verification error: ' . $e->getMessage());
+            Log::error('💥 Flutterwave verification error: ' . $e->getMessage(), [
+                'transaction_id' => $transactionId
+            ]);
             throw $e;
         }
     }
@@ -480,10 +557,27 @@ class PaymentController extends Controller
      */
     public function paymentHistory()
     {
-        $transactions = Transaction::where('user_id', Auth::id())
-            ->latest()
-            ->get();
+        try {
+            $transactions = Transaction::where('user_id', Auth::id())
+                ->latest()
+                ->get();
 
-        return response()->json($transactions);
+            Log::info('📊 Fetched payment history', [
+                'user_id' => Auth::id(),
+                'transaction_count' => $transactions->count()
+            ]);
+
+            return response()->json($transactions);
+        } catch (\Exception $e) {
+            Log::error('💥 Payment history fetch failed: ' . $e->getMessage(), [
+                'user_id' => Auth::id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch payment history',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
