@@ -46,7 +46,7 @@ class PaymentController extends Controller
                 'user_id' => Auth::id(),
                 'transaction_id' => $transactionRef,
                 'amount' => $validated['amount'],
-                'currency' => Auth::user()->currency,
+                'currency' => Auth::user()->currency ?? 'NGN',
                 'charge' => 0.00,
                 'transaction_type' => 'deposit',
                 'description' => 'Payment via ' . ucfirst($validated['payment_method']),
@@ -57,7 +57,7 @@ class PaymentController extends Controller
             $paymentData = [
                 'tx_ref' => $transactionRef,
                 'amount' => $validated['amount'],
-                'currency' => Auth::user()->currency,
+                'currency' => Auth::user()->currency ?? 'NGN',
                 'redirect_url' => rtrim(config('app.frontend_url'), '/') . '/payment/callback',
                 'customer' => [
                     'email' => Auth::user()->email,
@@ -102,7 +102,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * Handle payment callback (API endpoint).
+     * Handle payment callback from payment gateway (Webhook).
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
@@ -110,6 +110,8 @@ class PaymentController extends Controller
     public function handleCallback(Request $request)
     {
         try {
+            Log::info('Payment callback received', ['request' => $request->all()]);
+
             $transactionId = $request->input('transaction_id');
             $txRef = $request->input('tx_ref');
             $status = $request->input('status');
@@ -127,20 +129,50 @@ class PaymentController extends Controller
                 ->first();
 
             if (!$payment) {
-                throw new \Exception('Transaction not found');
+                throw new \Exception('Transaction not found for reference: ' . $reference);
+            }
+
+            // If already completed, return success
+            if ($payment->status === 'completed') {
+                return response()->json([
+                    'success' => true,
+                    'payment' => $payment,
+                    'message' => 'Payment already completed',
+                ]);
             }
 
             $normalizedStatus = strtolower($status);
 
-            // Handle all possible statuses
-            if ($normalizedStatus === 'successful' || $normalizedStatus === 'completed') {
-                if ($payment->payment_method === 'flutterwave') {
+            // Handle Flutterwave payment verification
+            if ($payment->payment_method === 'flutterwave') {
+                if ($normalizedStatus === 'successful' || $normalizedStatus === 'completed') {
                     $verification = $this->verifyFlutterwavePayment($reference);
 
                     if (!$verification || $verification['status'] !== 'success') {
                         throw new \Exception('Payment verification failed');
                     }
 
+                    // Check if payment is actually successful in Flutterwave
+                    $flutterwaveStatus = strtolower($verification['data']['status'] ?? '');
+                    $amountPaid = $verification['data']['amount'] ?? 0;
+                    $expectedAmount = $payment->amount;
+
+                    Log::info('Flutterwave verification result', [
+                        'flutterwave_status' => $flutterwaveStatus,
+                        'amount_paid' => $amountPaid,
+                        'expected_amount' => $expectedAmount
+                    ]);
+
+                    if ($flutterwaveStatus !== 'successful') {
+                        throw new \Exception('Payment not confirmed by Flutterwave. Status: ' . $flutterwaveStatus);
+                    }
+
+                    // Verify amount matches (with small tolerance for floating point)
+                    if (abs($amountPaid - $expectedAmount) > 0.01) {
+                        throw new \Exception('Payment amount mismatch. Paid: ' . $amountPaid . ', Expected: ' . $expectedAmount);
+                    }
+
+                    // Update transaction
                     $payment->update([
                         'transaction_id' => $verification['data']['id'] ?? $reference,
                         'status' => 'completed',
@@ -152,25 +184,45 @@ class PaymentController extends Controller
                     $user = $payment->user;
                     $user->balance += $payment->amount;
                     $user->save();
+
+                    Log::info('Payment completed successfully', [
+                        'transaction_id' => $payment->id,
+                        'user_id' => $user->id,
+                        'amount' => $payment->amount
+                    ]);
+                } elseif (in_array($normalizedStatus, ['cancelled', 'failed'])) {
+                    $payment->update(['status' => 'failed']);
+                    Log::info('Payment failed', ['transaction_id' => $payment->id]);
                 } else {
-                    // For other payment methods
+                    $payment->update(['status' => 'pending']);
+                }
+            } else {
+                // For Paystack and other payment methods
+                if ($normalizedStatus === 'successful' || $normalizedStatus === 'completed') {
                     $payment->update(['status' => 'completed']);
 
                     // Credit user's balance
                     $user = $payment->user;
                     $user->balance += $payment->amount;
                     $user->save();
+
+                    Log::info('Payment completed successfully', [
+                        'transaction_id' => $payment->id,
+                        'user_id' => $user->id,
+                        'amount' => $payment->amount
+                    ]);
+                } elseif (in_array($normalizedStatus, ['cancelled', 'failed'])) {
+                    $payment->update(['status' => 'failed']);
+                    Log::info('Payment failed', ['transaction_id' => $payment->id]);
+                } else {
+                    $payment->update(['status' => 'pending']);
                 }
-            } elseif ($status === 'cancelled' || $status === 'failed') {
-                $payment->update(['status' => 'failed']);
-            } else {
-                $payment->update(['status' => 'pending']);
             }
 
             return response()->json([
                 'success' => true,
                 'payment' => $payment,
-                'message' => 'Payment status updated',
+                'message' => 'Payment status updated successfully',
             ]);
         } catch (\Exception $e) {
             Log::error('Payment callback failed: ' . $e->getMessage(), [
@@ -181,6 +233,102 @@ class PaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error processing payment: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify payment from frontend (API endpoint).
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function verifyPayment(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'transaction_id' => 'required|string',
+                'status' => 'required|string|in:successful,completed,failed,cancelled,pending',
+            ]);
+
+            $transaction = Transaction::where('transaction_id', $validated['transaction_id'])
+                ->where('user_id', Auth::id())
+                ->first();
+
+            if (!$transaction) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction not found',
+                ], 404);
+            }
+
+            // If already verified, return current status
+            if ($transaction->status === 'completed') {
+                return response()->json([
+                    'success' => true,
+                    'data' => $transaction,
+                    'message' => 'Payment already verified',
+                ]);
+            }
+
+            // For Flutterwave, verify with their API
+            if (
+                $transaction->payment_method === 'flutterwave' &&
+                ($validated['status'] === 'successful' || $validated['status'] === 'completed')
+            ) {
+
+                $verification = $this->verifyFlutterwavePayment($validated['transaction_id']);
+
+                if ($verification && $verification['status'] === 'success') {
+                    $flutterwaveStatus = strtolower($verification['data']['status'] ?? '');
+
+                    if ($flutterwaveStatus === 'successful') {
+                        $transaction->update([
+                            'status' => 'completed',
+                            'meta' => json_encode($verification['data'] ?? []),
+                        ]);
+
+                        // Credit user's balance if not already credited
+                        $user = Auth::user();
+                        $user->balance += $transaction->amount;
+                        $user->save();
+
+                        Log::info('Payment verified and completed', [
+                            'transaction_id' => $transaction->id,
+                            'user_id' => $user->id
+                        ]);
+                    } else {
+                        $transaction->update(['status' => 'failed']);
+                    }
+                } else {
+                    $transaction->update(['status' => 'failed']);
+                }
+            } else {
+                // For other payment methods or statuses
+                $newStatus = $validated['status'] === 'successful' || $validated['status'] === 'completed'
+                    ? 'completed'
+                    : 'failed';
+
+                $transaction->update(['status' => $newStatus]);
+
+                // If successful, credit user's balance
+                if ($newStatus === 'completed') {
+                    $user = Auth::user();
+                    $user->balance += $transaction->amount;
+                    $user->save();
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $transaction,
+                'message' => 'Payment verified successfully',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Payment verification failed: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment verification failed: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -243,9 +391,6 @@ class PaymentController extends Controller
             throw $e;
         }
     }
-
-
-
 
     /**
      * Create a Paystack payment link.
@@ -325,71 +470,6 @@ class PaymentController extends Controller
         } catch (\Exception $e) {
             Log::error('Flutterwave verification error: ' . $e->getMessage());
             throw $e;
-        }
-    }
-
-
-
-
-    /**
-     * Verify a payment (API endpoint).
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function paymentCallback(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'transaction_id' => 'required|string',
-                'status' => 'required|string|in:successful,completed,failed,cancelled',
-            ]);
-
-            $transaction = Transaction::where('transaction_id', $validated['transaction_id'])
-                ->where('user_id', Auth::id())
-                ->first();
-
-            if (!$transaction) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Transaction not found',
-                ], 404);
-            }
-
-            // If already verified, return current status
-            if ($transaction->status === 'completed') {
-                return response()->json([
-                    'success' => true,
-                    'data' => $transaction,
-                    'message' => 'Payment already verified',
-                ]);
-            }
-
-            // Update transaction status
-            $newStatus = $validated['status'] === 'successful' || $validated['status'] === 'completed'
-                ? 'completed'
-                : 'failed';
-
-            $transaction->update(['status' => $newStatus]);
-
-            // If successful, credit user's balance
-            if ($newStatus === 'completed') {
-                $user = Auth::user();
-                $user->balance += $transaction->amount;
-                $user->save();
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $transaction,
-                'message' => 'Payment verified successfully',
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Payment verification failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Payment verification failed: ' . $e->getMessage(),
-            ], 500);
         }
     }
 

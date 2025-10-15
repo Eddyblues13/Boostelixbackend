@@ -67,6 +67,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Payment endpoints
     Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
     Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
+    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
+    Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
+    Route::post('/payment/verify', [PaymentController::class, 'paymentCallback']);
+    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
 
 
 
@@ -102,8 +106,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/affiliate/track/{code}', [AffiliateController::class, 'trackVisit'])->withoutMiddleware(['auth:sanctum']);
 });
 
-// Callback route (no auth needed)
-Route::get('/payment/callback', [PaymentController::class, 'paymentCallback']);
+// // Callback route (no auth needed)
+// Route::get('/payment/callback', [PaymentController::class, 'paymentCallback']);
 
 
 
