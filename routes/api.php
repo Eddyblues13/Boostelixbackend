@@ -14,7 +14,6 @@ use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\AffiliateController;
-use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\Api\Admin\ManageUserController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
@@ -55,14 +54,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/history', [OrderController::class, 'history']);
 
-     // Ticket endpoint
+    // Ticket endpoint
     Route::post('/tickets', [TicketController::class, 'store']);
 
-       // Ticket History endpoint
+    // Ticket History endpoint
     Route::get('/ticketshistory', [TicketController::class, 'index']);
 
 
-      // ServiceUpdate History endpoint
+    // ServiceUpdate History endpoint
     Route::get('/user-service-updates', [ManageServiceUpdateController::class, 'index']);
 
     // Payment endpoints
@@ -162,7 +161,7 @@ Route::prefix('admin')->group(function () {
     Route::middleware(['auth:sanctum', 'admin.token'])->group(function () {
         Route::post('/logout', [AdminAuthController::class, 'logout']);
         Route::get('/me', [AdminAuthController::class, 'me']);
-        Route::get('dashboard', [AdminController::class, 'dashboard']);
+        Route::get('dashboard', [App\Http\Controllers\Api\Admin\AdminController::class, 'dashboard']);
 
         // Admin Settings Endpoints
         Route::get('/settings', [AdminSettingsController::class, 'index']);
@@ -207,18 +206,18 @@ Route::prefix('admin')->group(function () {
             Route::post('/services/save', [ApiProviderController::class, 'importServices']);
         });
 
-           // Manageusertickets
-           Route::get('/tickets', [ManageTicketController::class, 'index']);
-           Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
-           Route::put('/tickets/{id}/status', [ManageTicketController::class, 'updateStatus']);
-           Route::delete('/tickets/{id}', [ManageTicketController::class, 'destroy']);
+        // Manageusertickets
+        Route::get('/tickets', [ManageTicketController::class, 'index']);
+        Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
+        Route::put('/tickets/{id}/status', [ManageTicketController::class, 'updateStatus']);
+        Route::delete('/tickets/{id}', [ManageTicketController::class, 'destroy']);
 
-           // Manage Service Controller
-           Route::post('/service-updates', [ManageServiceUpdateController::class, 'UpdateService']);
-           Route::get('/service-update-history', [ManageServiceUpdateController::class, 'ServiceUpdateHistory']);
+        // Manage Service Controller
+        Route::post('/service-updates', [ManageServiceUpdateController::class, 'UpdateService']);
+        Route::get('/service-update-history', [ManageServiceUpdateController::class, 'ServiceUpdateHistory']);
 
-           // Transaction Management Routes
-            Route::prefix('transactions')->group(function () {
+        // Transaction Management Routes
+        Route::prefix('transactions')->group(function () {
             Route::get('/', [TransactionController::class, 'index']);
             Route::get('/stats', [TransactionController::class, 'stats']);
             Route::post('/', [TransactionController::class, 'store']);
