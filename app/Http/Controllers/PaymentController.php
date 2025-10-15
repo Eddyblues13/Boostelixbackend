@@ -102,7 +102,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * Handle payment callback from payment gateway (Webhook).
+     * Handle payment callback from payment gatewayyy (Webhook).
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\JsonResponse
