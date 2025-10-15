@@ -94,14 +94,19 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Track referral visits
     Route::get('/affiliate/track/{code}', [AffiliateController::class, 'trackVisit'])->withoutMiddleware(['auth:sanctum']);
+
+
+
+    // Payment endpoints
+    Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
+    Route::post('/payment/verify', [PaymentController::class, 'verifyPayment']);
+    Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
+    Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
 });
 
 
-// Payment endpoints
-Route::post('/payment/initiate', [PaymentController::class, 'initiatePayment']);
-Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
-Route::post('/payment/verify', [PaymentController::class, 'verifyPayment']); // ✅ Correct method name
-Route::get('/payment/history', [PaymentController::class, 'paymentHistory']);
+
+
 
 // routes/api.php
 Route::get('/test-db', function () {
