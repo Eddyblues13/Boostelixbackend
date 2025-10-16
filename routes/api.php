@@ -17,7 +17,7 @@ use App\Http\Controllers\API\AffiliateController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\LoginController;
-use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\API\NotificationController;
 use App\Http\Controllers\API\OrderController;
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\ServiceController;
