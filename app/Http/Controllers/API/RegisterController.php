@@ -36,7 +36,7 @@ class RegisterController extends Controller
             $currency = 'NGN'; // fallback
 
             // ✅ Get location info using ip-api.com
-            $response = Http::get("http://ip-api.com/json/{$ip}");
+            $response = Http::get("https://ip-api.com/json/{$ip}");
 
             if ($response->ok()) {
                 $country = $response->json()['country'] ?? 'Unknown';
