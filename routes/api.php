@@ -1,29 +1,31 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AccountController;
-use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\API\UserController;
-use App\Http\Controllers\API\LoginController;
-use App\Http\Controllers\API\OrderController;
-use App\Http\Controllers\Api\TicketController;
-use App\Http\Controllers\API\ServiceController;
-use App\Http\Controllers\API\CategoryController;
-use App\Http\Controllers\API\RegisterController;
-use App\Http\Controllers\API\AffiliateController;
-use App\Http\Controllers\Api\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
-use App\Http\Controllers\Api\Admin\ManageUserController;
+use App\Http\Controllers\Api\Admin\AdminController;
+use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\Api\Admin\ManageCategoryController;
 use App\Http\Controllers\Api\Admin\ManageOrderController;
-use App\Http\Controllers\API\Admin\TransactionController;
-use App\Http\Controllers\API\Admin\AdminSettingsController;
 use App\Http\Controllers\Api\Admin\ManageServiceController;
 use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
 use App\Http\Controllers\Api\Admin\ManageTicketController;
 use App\Http\Controllers\Api\Admin\ManageTransactionsController;
+use App\Http\Controllers\Api\Admin\ManageUserController;
+use App\Http\Controllers\API\Admin\TransactionController;
+use App\Http\Controllers\API\AffiliateController;
+use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\LoginController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\API\OrderController;
+use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\ServiceController;
+use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\PaymentController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+
 
 
 
@@ -59,6 +61,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
        // Ticket History endpoint
     Route::get('/ticketshistory', [TicketController::class, 'index']);
+
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/mark-read/{id}', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/mark-all', [NotificationController::class, 'markAllAsRead']);
+    Route::delete('/notifications/delete/{id}', [NotificationController::class, 'destroy']);
+    Route::delete('/notifications/clear-all', [NotificationController::class, 'clearAll']);
+
 
 
       // ServiceUpdate History endpoint

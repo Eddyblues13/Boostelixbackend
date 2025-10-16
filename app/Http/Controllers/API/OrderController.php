@@ -12,6 +12,10 @@ use App\Models\Order;
 use App\Models\Service;
 use App\Models\ApiProvider;
 use App\Models\Transaction;
+use App\Jobs\CreateGeneralNotificationJob;
+use App\Models\GeneralNotification;
+
+
 use App\Mail\CustomMail;
 
 class OrderController extends Controller
@@ -139,6 +143,21 @@ class OrderController extends Controller
             'status' => 'pending',
             'meta' => null,
         ]);
+
+        CreateGeneralNotificationJob::dispatch([
+    'user_id' => Auth::id(),
+    'type' => 'order',
+    'title' => 'Order Placed Successfully',
+    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
+]);
+
+// (new \App\Jobs\CreateGeneralNotificationJob([
+//     'user_id' => Auth::id(),
+//     'type' => 'order',
+//     'title' => 'Order Placed Successfully',
+//     'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
+// ]))->handle();
+
 
         // Send email using CustomMail
         // $emailBody = view('email.order_confirm', [
