@@ -8,25 +8,25 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\LoginController;
 use App\Http\Controllers\API\OrderController;
-use App\Http\Controllers\Api\SmmApiController;
-use App\Http\Controllers\Api\TicketController;
+use App\Http\Controllers\API\SmmAPIController;
+use App\Http\Controllers\API\TicketController;
 use App\Http\Controllers\API\ServiceController;
 use App\Http\Controllers\API\CategoryController;
 use App\Http\Controllers\API\CurrencyController;
 use App\Http\Controllers\API\RegisterController;
 use App\Http\Controllers\API\AffiliateController;
-use App\Http\Controllers\Api\Admin\AdminController;
+use App\Http\Controllers\API\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
-use App\Http\Controllers\Api\Admin\ManageUserController;
-use App\Http\Controllers\API\Admin\ApiProviderController;
-use App\Http\Controllers\Api\Admin\ManageOrderController;
+use App\Http\Controllers\API\Admin\ManageUserController;
+use App\Http\Controllers\API\Admin\APIProviderController;
+use App\Http\Controllers\API\Admin\ManageOrderController;
 use App\Http\Controllers\API\Admin\TransactionController;
-use App\Http\Controllers\Api\Admin\ManageTicketController;
+use App\Http\Controllers\API\Admin\ManageTicketController;
 use App\Http\Controllers\API\Admin\AdminSettingsController;
-use App\Http\Controllers\Api\Admin\ManageServiceController;
-use App\Http\Controllers\Api\Admin\ManageCategoryController;
-use App\Http\Controllers\Api\Admin\ManageTransactionsController;
-use App\Http\Controllers\Api\Admin\ManageServiceUpdateController;
+use App\Http\Controllers\API\Admin\ManageServiceController;
+use App\Http\Controllers\API\Admin\ManageCategoryController;
+use App\Http\Controllers\API\Admin\ManageTransactionsController;
+use App\Http\Controllers\API\Admin\ManageServiceUpdateController;
 
 Route::post('/register', [RegisterController::class, 'register']);
 Route::post('/login', [LoginController::class, 'login']);
@@ -76,7 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/account/email', [AccountController::class, 'updateEmail']);
     Route::put('/account/username', [AccountController::class, 'updateUsername']);
     Route::put('/account/two-factor', [AccountController::class, 'updateTwoFactor']);
-    Route::post('/account/api-key', [AccountController::class, 'generateApiKey']);
+    Route::post('/account/API-key', [AccountController::class, 'generateAPIKey']);
     Route::put('/account/preferences', [AccountController::class, 'updatePreferences']);
     Route::put('/account/notifications', [AccountController::class, 'updateNotifications']);
 
@@ -110,7 +110,7 @@ Route::post('/payment/callback', [PaymentController::class, 'handleCallback']);
 
 
 
-// routes/api.php
+// routes/API.php
 Route::get('/test-db', function () {
     try {
         DB::connection()->getPdo();
@@ -133,25 +133,25 @@ Route::get('/test-db', function () {
 
 Route::prefix('v2')->group(function () {
     // Authentication middleware for API endpoints
-    Route::middleware(['auth:api', 'throttle:60,1'])->group(function () {
+    Route::middleware(['auth:API', 'throttle:60,1'])->group(function () {
         // Service list
-        Route::post('/services', [SmmApiController::class, 'getServices']);
+        Route::post('/services', [SmmAPIController::class, 'getServices']);
 
         // Order management
-        Route::post('/orders', [SmmApiController::class, 'placeOrder']);
-        Route::post('/orders/status', [SmmApiController::class, 'checkOrderStatus']);
-        Route::post('/orders/multi-status', [SmmApiController::class, 'checkMultiOrderStatus']);
-        Route::post('/orders/history', [SmmApiController::class, 'getOrderHistory']);
+        Route::post('/orders', [SmmAPIController::class, 'placeOrder']);
+        Route::post('/orders/status', [SmmAPIController::class, 'checkOrderStatus']);
+        Route::post('/orders/multi-status', [SmmAPIController::class, 'checkMultiOrderStatus']);
+        Route::post('/orders/history', [SmmAPIController::class, 'getOrderHistory']);
 
         // Refill
-        Route::post('/refill', [SmmApiController::class, 'createRefill']);
+        Route::post('/refill', [SmmAPIController::class, 'createRefill']);
 
         // Balance
-        Route::post('/balance', [SmmApiController::class, 'getBalance']);
+        Route::post('/balance', [SmmAPIController::class, 'getBalance']);
     });
 
     // API key generation
-    Route::post('/generate-key', [SmmApiController::class, 'generateApiKey'])
+    Route::post('/generate-key', [SmmAPIController::class, 'generateAPIKey'])
         ->middleware('auth:sanctum');
 });
 
@@ -190,23 +190,23 @@ Route::prefix('admin')->group(function () {
         Route::get('/orders', [ManageOrderController::class, 'allOrders']);
 
 
-        // api providers
+        // API providers
         Route::prefix('providers')->group(function () {
 
-            Route::get('', [ApiProviderController::class, 'index']);
-            Route::post('', [ApiProviderController::class, 'store']);
-            Route::get('{id}', [ApiProviderController::class, 'show']);
-            Route::put('{id}', [ApiProviderController::class, 'update']);
-            Route::delete('{id}', [ApiProviderController::class, 'destroy']);
+            Route::get('', [APIProviderController::class, 'index']);
+            Route::post('', [APIProviderController::class, 'store']);
+            Route::get('{id}', [APIProviderController::class, 'show']);
+            Route::put('{id}', [APIProviderController::class, 'update']);
+            Route::delete('{id}', [APIProviderController::class, 'destroy']);
 
-            Route::patch('/{id}/toggle-status', [ApiProviderController::class, 'toggleStatus']);
-            Route::post('/{id}/sync-services', [ApiProviderController::class, 'syncServices']);
+            Route::patch('/{id}/toggle-status', [APIProviderController::class, 'toggleStatus']);
+            Route::post('/{id}/sync-services', [APIProviderController::class, 'syncServices']);
 
-            Route::post('/api-provider/services', [ApiProviderController::class, 'getApiServices']);
-            Route::post('/services/import', [ApiProviderController::class, 'import']);
-            Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
-            Route::post('/services/all', [ApiProviderController::class, 'fetchAllServicesFromProvider']);
-            Route::post('/services/save', [ApiProviderController::class, 'importServices']);
+            Route::post('/API-provider/services', [APIProviderController::class, 'getAPIServices']);
+            Route::post('/services/import', [APIProviderController::class, 'import']);
+            Route::post('/services/import-bulk', [APIProviderController::class, 'importMulti']);
+            Route::post('/services/all', [APIProviderController::class, 'fetchAllServicesFromProvider']);
+            Route::post('/services/save', [APIProviderController::class, 'importServices']);
         });
 
         // Manageusertickets
