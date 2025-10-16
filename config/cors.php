@@ -14,8 +14,9 @@ return [
 
     'allowed_origins' => [
         'http://localhost:5173',
-        'https://www.boostelix.com',  // Your frontend domain
-        'https://boostelix.com'       // Also allow without www
+        'http://127.0.0.1:5173',
+        'https://www.boostelix.com',
+        'https://boostelix.com', // Also allow without www
     ],
 
     'allowed_origins_patterns' => [],

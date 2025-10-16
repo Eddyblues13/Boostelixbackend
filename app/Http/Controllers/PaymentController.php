@@ -261,22 +261,26 @@ class PaymentController extends Controller
                 'status' => 'required|string|in:successful,completed,failed,cancelled,pending',
             ]);
 
+            // 🔎 Flexible transaction lookup
             $transaction = Transaction::where('transaction_id', $validated['transaction_id'])
-                ->where('user_id', Auth::id())
+                ->orWhere('meta->transaction_id', $validated['transaction_id'])
+                ->orWhere('meta->id', $validated['transaction_id'])
+                ->orWhere('meta->tx_ref', $validated['transaction_id'])
                 ->first();
 
             if (!$transaction) {
-                Log::error('❌ Transaction not found for user', [
+                Log::error('❌ Transaction not found', [
                     'transaction_id' => $validated['transaction_id'],
                     'user_id' => Auth::id()
                 ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Transaction not found',
                 ], 404);
             }
 
-            // If already verified, return current status
+            // ✅ If already completed, return existing data
             if ($transaction->status === 'completed') {
                 Log::info('✅ Payment already verified', ['transaction_id' => $transaction->id]);
                 return response()->json([
@@ -292,14 +296,11 @@ class PaymentController extends Controller
                 'requested_status' => $validated['status']
             ]);
 
-            // For Flutterwave, verify with their API
+            // 🔍 Verify via Flutterwave if applicable
             if (
                 $transaction->payment_method === 'flutterwave' &&
-                ($validated['status'] === 'successful' || $validated['status'] === 'completed')
+                in_array($validated['status'], ['successful', 'completed'])
             ) {
-
-                Log::info('🔍 Verifying Flutterwave payment', ['transaction_id' => $validated['transaction_id']]);
-
                 $verification = $this->verifyFlutterwavePayment($validated['transaction_id']);
 
                 if ($verification && $verification['status'] === 'success') {
@@ -313,20 +314,18 @@ class PaymentController extends Controller
                     if ($flutterwaveStatus === 'successful') {
                         $transaction->update([
                             'status' => 'completed',
-                            'meta' => json_encode($verification['data'] ?? []),
+                            'meta' => json_encode($verification['data']),
                         ]);
 
-                        // Credit user's balance if not already credited
-                        $user = Auth::user();
-                        $user->balance += $transaction->amount;
-                        $user->save();
-
-                        Log::info('💰 Payment verified and completed', [
-                            'transaction_id' => $transaction->id,
-                            'user_id' => $user->id,
-                            'amount' => $transaction->amount,
-                            'new_balance' => $user->balance
-                        ]);
+                        // 🏦 Safely credit user balance
+                        if ($transaction->user) {
+                            $transaction->user->increment('balance', $transaction->amount);
+                            Log::info('💰 User balance credited', [
+                                'user_id' => $transaction->user_id,
+                                'amount' => $transaction->amount,
+                                'new_balance' => $transaction->user->balance
+                            ]);
+                        }
                     } else {
                         $transaction->update(['status' => 'failed']);
                         Log::info('❌ Flutterwave payment failed', [
@@ -342,34 +341,22 @@ class PaymentController extends Controller
                     ]);
                 }
             } else {
-                // For other payment methods or statuses
-                $newStatus = ($validated['status'] === 'successful' || $validated['status'] === 'completed')
-                    ? 'completed'
-                    : 'failed';
+                // Other payment methods
+                $newStatus = in_array($validated['status'], ['successful', 'completed'])
+                    ? 'completed' : 'failed';
 
                 $transaction->update(['status' => $newStatus]);
 
-                // If successful, credit user's balance
-                if ($newStatus === 'completed') {
-                    $user = Auth::user();
-                    $user->balance += $transaction->amount;
-                    $user->save();
-
-                    Log::info('💰 Payment completed via direct update', [
+                if ($newStatus === 'completed' && $transaction->user) {
+                    $transaction->user->increment('balance', $transaction->amount);
+                    Log::info('💰 Balance credited (direct update)', [
                         'transaction_id' => $transaction->id,
-                        'user_id' => $user->id,
-                        'amount' => $transaction->amount,
-                        'new_balance' => $user->balance
+                        'user_id' => $transaction->user_id,
+                        'amount' => $transaction->amount
                     ]);
                 }
-
-                Log::info('📝 Payment status updated directly', [
-                    'transaction_id' => $transaction->id,
-                    'new_status' => $newStatus
-                ]);
             }
 
-            // Reload the transaction to get updated data
             $transaction->refresh();
 
             return response()->json([
@@ -390,6 +377,7 @@ class PaymentController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Create payment link based on payment method.
