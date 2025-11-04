@@ -148,7 +148,7 @@ class OrderController extends Controller
     'user_id' => Auth::id(),
     'type' => 'order',
     'title' => 'Order Placed Successfully',
-    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
+    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: #$price.",
 ]);
 
 // (new \App\Jobs\CreateGeneralNotificationJob([
