@@ -4,7 +4,7 @@ use App\Http\Controllers\AccountController;
 use App\Http\Controllers\API\Admin\AdminAuthController;
 use App\Http\Controllers\API\Admin\AdminController;
 use App\Http\Controllers\API\Admin\AdminSettingsController;
-use App\Http\Controllers\API\Admin\APIProviderController;
+use App\Http\Controllers\API\Admin\ApiProviderController;
 use App\Http\Controllers\API\Admin\ManageCategoryController;
 use App\Http\Controllers\API\Admin\ManageOrderController;
 use App\Http\Controllers\API\Admin\ManageServiceController;
@@ -74,7 +74,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-      // ServiceUpdate History endpoint
+    // ServiceUpdate History endpoint
     Route::get('/user-service-updates', [ManageServiceUpdateController::class, 'index']);
 
 
@@ -224,7 +224,7 @@ Route::prefix('admin')->group(function () {
             Route::post('/services/save', [APIProviderController::class, 'importServices']);
         });
 
-        
+
         // Manageusertickets
         Route::get('/tickets', [ManageTicketController::class, 'index']);
         Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
@@ -278,7 +278,7 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
 
 
     // Transaction management
-     Route::get('/transactions', [ManageTransactionsController::class, 'getAllTransactions']);
+    Route::get('/transactions', [ManageTransactionsController::class, 'getAllTransactions']);
     Route::get('/{id}/transactions', [ManageTransactionsController::class, 'getUserTransactions']);
     Route::post('/{id}/transactions', [ManageUserController::class, 'createUserTransaction']);
     Route::put('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'updateUserTransaction']);
