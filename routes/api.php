@@ -200,7 +200,7 @@ Route::prefix('admin')->group(function () {
         Route::get('/orders', [ManageOrderController::class, 'allOrders']);
 
 
-        // API providers
+        // API provider
         Route::prefix('providers')->group(function () {
 
             Route::get('', [ApiProviderController::class, 'index']);
