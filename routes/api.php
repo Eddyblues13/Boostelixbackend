@@ -72,7 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
 
-      // ServiceUpdate History endpoint
+    // ServiceUpdate History endpoint
     Route::get('/user-service-updates', [ManageServiceUpdateController::class, 'index']);
 
 
@@ -203,20 +203,20 @@ Route::prefix('admin')->group(function () {
         // API providers
         Route::prefix('providers')->group(function () {
 
-            Route::get('', [APIProviderController::class, 'index']);
-            Route::post('', [APIProviderController::class, 'store']);
-            Route::get('{id}', [APIProviderController::class, 'show']);
-            Route::put('{id}', [APIProviderController::class, 'update']);
-            Route::delete('{id}', [APIProviderController::class, 'destroy']);
+            Route::get('', [ApiProviderController::class, 'index']);
+            Route::post('', [ApiProviderController::class, 'store']);
+            Route::get('{id}', [ApiProviderController::class, 'show']);
+            Route::put('{id}', [ApiProviderController::class, 'update']);
+            Route::delete('{id}', [ApiProviderController::class, 'destroy']);
 
-            Route::patch('/{id}/toggle-status', [APIProviderController::class, 'toggleStatus']);
-            Route::post('/{id}/sync-services', [APIProviderController::class, 'syncServices']);
+            Route::patch('/{id}/toggle-status', [ApiProviderController::class, 'toggleStatus']);
+            Route::post('/{id}/sync-services', [ApiProviderController::class, 'syncServices']);
 
-            Route::post('/API-provider/services', [APIProviderController::class, 'getAPIServices']);
-            Route::post('/services/import', [APIProviderController::class, 'import']);
-            Route::post('/services/import-bulk', [APIProviderController::class, 'importMulti']);
-            Route::post('/services/all', [APIProviderController::class, 'fetchAllServicesFromProvider']);
-            Route::post('/services/save', [APIProviderController::class, 'importServices']);
+            Route::post('/API-provider/services', [ApiProviderController::class, 'getAPIServices']);
+            Route::post('/services/import', [ApiProviderController::class, 'import']);
+            Route::post('/services/import-bulk', [ApiProviderController::class, 'importMulti']);
+            Route::post('/services/all', [ApiProviderController::class, 'fetchAllServicesFromProvider']);
+            Route::post('/services/save', [ApiProviderController::class, 'importServices']);
         });
 
         // Manageusertickets
