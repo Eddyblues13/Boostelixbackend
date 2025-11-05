@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Http\Controllers\Controller;
+use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 
 class ManageTransactionsController extends Controller
 {
@@ -14,6 +15,33 @@ class ManageTransactionsController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
+
+
+
+
+
+
+      //get all users transactions
+       public function getAllTransactions(){ 
+        try {
+        // Get all transactions, latest first
+        $transactions = Transaction::latest()->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All transactions retrieved successfully',
+            'data' => $transactions
+        ], 200);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to retrieve transactions',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
     public function getUserTransactions($id)
     {
         try {

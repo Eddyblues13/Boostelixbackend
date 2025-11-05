@@ -12,6 +12,7 @@ use App\Http\Controllers\API\Admin\ManageServiceUpdateController;
 use App\Http\Controllers\API\Admin\ManageTicketController;
 use App\Http\Controllers\API\Admin\ManageTransactionsController;
 use App\Http\Controllers\API\Admin\ManageUserController;
+use App\Http\Controllers\API\Admin\SendMailController;
 use App\Http\Controllers\API\Admin\TransactionController;
 use App\Http\Controllers\API\AffiliateController;
 use App\Http\Controllers\API\CategoryController;
@@ -28,6 +29,7 @@ use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+
 
 
 Route::post('/register', [RegisterController::class, 'register']);
@@ -176,6 +178,9 @@ Route::prefix('admin')->group(function () {
         Route::get('/me', [AdminAuthController::class, 'me']);
         Route::get('/dashboard', [AdminController::class, 'dashboard']);
 
+        // send  all user emails
+        Route::post('/send-email-all', [SendMailController::class, 'sendEmailToAll']);
+
         // Admin Settings Endpoints
         Route::get('/settings', [AdminSettingsController::class, 'index']);
         Route::put('/settings/profile', [AdminSettingsController::class, 'updateProfile']);
@@ -219,6 +224,7 @@ Route::prefix('admin')->group(function () {
             Route::post('/services/save', [APIProviderController::class, 'importServices']);
         });
 
+        
         // Manageusertickets
         Route::get('/tickets', [ManageTicketController::class, 'index']);
         Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
@@ -262,8 +268,6 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     Route::post('/{id}/custom-rate', [ManageUserController::class, 'setCustomRate']);
 
 
-
-
     // Order management
     Route::get('/{id}/orders', [ManageUserController::class, 'getUserOrders']);
     Route::delete('/orders/{id}', [ManageOrderController::class, 'destroy']);
@@ -274,6 +278,7 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
 
 
     // Transaction management
+     Route::get('/transactions', [ManageTransactionsController::class, 'getAllTransactions']);
     Route::get('/{id}/transactions', [ManageTransactionsController::class, 'getUserTransactions']);
     Route::post('/{id}/transactions', [ManageUserController::class, 'createUserTransaction']);
     Route::put('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'updateUserTransaction']);
