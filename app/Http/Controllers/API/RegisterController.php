@@ -63,7 +63,7 @@ class RegisterController extends Controller
                 'username' => $validated['username'],
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
-                'currency' => $currency, // Make sure this column exists
+                'currency' => $currency,
             ]);
 
             return response()->json([
