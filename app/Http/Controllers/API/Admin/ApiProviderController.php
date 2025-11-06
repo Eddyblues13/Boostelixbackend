@@ -9,8 +9,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Mews\Purifier\Facades\Purifier;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
+
 
 class ApiProviderController extends Controller
 {
@@ -593,42 +595,59 @@ class ApiProviderController extends Controller
             'services' => 'required|array',
         ]);
 
-        $provider = ApiProvider::findOrFail($request->api_provider_id);
+        // Remove limits to allow large imports
+        ini_set('memory_limit', '-1');
+        set_time_limit(0);
 
-        foreach ($request->services as $service) {
-            // Create or find the category
-            $category = Category::firstOrCreate(
-                ['category_title' => $service['category'] ?? 'Uncategorized'],
-                ['category_description' => $service['category'] ?? 'Uncategorized'],
-                ['status' => 1]
-            );
+        $providerId = $request->api_provider_id;
+        $services = $request->services;
 
-            $exists = Service::where('api_service_id', $service['service'])
-                ->where('api_provider_id', $provider->id)
-                ->exists();
+        $provider = ApiProvider::findOrFail($providerId);
+        $categoryCache = Category::pluck('id', 'category_title')->toArray();
 
-            if (!$exists) {
-                Service::create([
-                    'category_id' => $category->id,
-                    'service_title' => $service['name'] ?? '',
-                    'min_amount' => $service['min'] ?? 0,
-                    'max_amount' => $service['max'] ?? 0,
-                    'average_time' => $service['average_time'] ?? null,
-                    'rate_per_1000' => $service['rate'] ?? 0,
-                    'api_service_id' => $service['service'],
-                    'api_provider_id' => $provider->id,
-                    'api_provider_price' => $service['rate'] ?? 0,
-                    'service_status' => 1,
-                    'service_type' => $service['type'] ?? 'default',
-                    'refill' => isset($service['refill']) ? (bool) $service['refill'] : false,
-                    'drip_feed' => isset($service['dripfeed']) ? (int) $service['dripfeed'] : 0,
+        $toInsert = [];
+
+        foreach ($services as $service) {
+            $categoryTitle = $service['category'] ?? 'Uncategorized';
+
+            // Reuse or create category once
+            if (!isset($categoryCache[$categoryTitle])) {
+                $category = Category::create([
+                    'category_title' => $categoryTitle,
+                    'category_description' => $categoryTitle,
+                    'status' => 1,
                 ]);
+                $categoryCache[$categoryTitle] = $category->id;
             }
+
+            $toInsert[] = [
+                'category_id'        => $categoryCache[$categoryTitle],
+                'service_title'      => $service['name'] ?? '',
+                'min_amount'         => $service['min'] ?? 0,
+                'max_amount'         => $service['max'] ?? 0,
+                'average_time'       => $service['average_time'] ?? null,
+                'rate_per_1000'      => $service['rate'] ?? 0,
+                'api_service_id'     => $service['service'],
+                'api_provider_id'    => $providerId,
+                'api_provider_price' => $service['rate'] ?? 0,
+                'service_status'     => 1,
+                'service_type'       => $service['type'] ?? 'default',
+                'refill'             => isset($service['refill']) ? (bool)$service['refill'] : false,
+                'drip_feed'          => isset($service['dripfeed']) ? (int)$service['dripfeed'] : 0,
+            ];
+        }
+
+        // Batch insert while ignoring existing ones
+        foreach (array_chunk($toInsert, 1000) as $chunk) {
+            DB::table('services')->insertOrIgnore($chunk);
         }
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Selected services imported successfully.'
+            'message' => 'Selected services imported successfully.',
+            'imported_count' => count($toInsert),
         ]);
     }
+
+
 }
