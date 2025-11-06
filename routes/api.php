@@ -1,34 +1,35 @@
 <?php
 
-use App\Http\Controllers\AccountController;
-use App\Http\Controllers\API\Admin\AdminAuthController;
-use App\Http\Controllers\API\Admin\AdminController;
-use App\Http\Controllers\API\Admin\AdminSettingsController;
-use App\Http\Controllers\API\Admin\ApiProviderController;
-use App\Http\Controllers\API\Admin\ManageCategoryController;
-use App\Http\Controllers\API\Admin\ManageOrderController;
-use App\Http\Controllers\API\Admin\ManageServiceController;
-use App\Http\Controllers\API\Admin\ManageServiceUpdateController;
-use App\Http\Controllers\API\Admin\ManageTicketController;
-use App\Http\Controllers\API\Admin\ManageTransactionsController;
-use App\Http\Controllers\API\Admin\ManageUserController;
-use App\Http\Controllers\API\Admin\SendMailController;
-use App\Http\Controllers\API\Admin\TransactionController;
-use App\Http\Controllers\API\AffiliateController;
-use App\Http\Controllers\API\CategoryController;
-use App\Http\Controllers\API\CurrencyController;
-use App\Http\Controllers\API\LoginController;
-use App\Http\Controllers\API\NotificationController;
-use App\Http\Controllers\API\OrderController;
-use App\Http\Controllers\API\RegisterController;
-use App\Http\Controllers\API\ServiceController;
-use App\Http\Controllers\API\SmmAPIController;
-use App\Http\Controllers\API\TicketController;
-use App\Http\Controllers\API\UserController;
-use App\Http\Controllers\PaymentController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\AccountController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\API\UserController;
+use App\Http\Controllers\API\LoginController;
+use App\Http\Controllers\API\OrderController;
+use App\Http\Controllers\API\SmmAPIController;
+use App\Http\Controllers\API\TicketController;
+use App\Http\Controllers\API\ServiceController;
+use App\Http\Controllers\API\CategoryController;
+use App\Http\Controllers\API\CurrencyController;
+use App\Http\Controllers\API\RegisterController;
+use App\Http\Controllers\API\AffiliateController;
+use App\Http\Controllers\API\Admin\AdminController;
+use App\Http\Controllers\API\NotificationController;
+use App\Http\Controllers\API\Admin\SendMailController;
+use App\Http\Controllers\API\Admin\AdminAuthController;
+use App\Http\Controllers\API\Admin\ManageUserController;
+use App\Http\Controllers\API\Admin\ApiProviderController;
+use App\Http\Controllers\API\Admin\ManageOrderController;
+use App\Http\Controllers\API\Admin\TransactionController;
+use App\Http\Controllers\API\Admin\ManageTicketController;
+use App\Http\Controllers\API\Admin\AdminSettingsController;
+use App\Http\Controllers\API\Admin\ManageServiceController;
+use App\Http\Controllers\API\Admin\ManageCategoryController;
+use App\Http\Controllers\API\Admin\ManageServicePriceController;
+use App\Http\Controllers\API\Admin\ManageTransactionsController;
+use App\Http\Controllers\API\Admin\ManageServiceUpdateController;
 
 
 
@@ -256,6 +257,8 @@ Route::prefix('admin')->group(function () {
 
 
 
+
+
 Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group(function () {
 
     // User management
@@ -283,4 +286,13 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     Route::post('/{id}/transactions', [ManageUserController::class, 'createUserTransaction']);
     Route::put('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'updateUserTransaction']);
     Route::delete('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'deleteUserTransaction']);
+});
+
+
+
+Route::prefix('admin')->middleware(['auth:sanctum', 'admin.token'])->group(function () {
+
+    // Bulk price management
+    Route::post('/services/increase-prices', [ManageServicePriceController::class, 'increasePrices']);
+    Route::get('/services/price-stats', [ManageServicePriceController::class, 'getPriceIncreaseStats']);
 });

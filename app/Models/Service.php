@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\UserServiceRate;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
@@ -85,5 +86,40 @@ class Service extends Model
             }
             return false;
         }
+    }
+
+
+    public static function increaseAllPrices($percentage)
+    {
+        $increaseFactor = 1 + ($percentage / 100);
+
+        return self::query()->update([
+            'price' => DB::raw("ROUND(price * $increaseFactor, 8)"),
+            'api_provider_price' => DB::raw("ROUND(api_provider_price * $increaseFactor, 8)")
+        ]);
+    }
+
+    public static function bulkIncreasePrices($percentage, $conditions = [])
+    {
+        $increaseFactor = 1 + ($percentage / 100);
+        $query = self::query();
+
+        // Apply conditions if provided
+        if (!empty($conditions['category_id'])) {
+            $query->where('category_id', $conditions['category_id']);
+        }
+
+        if (!empty($conditions['provider_id'])) {
+            $query->where('api_provider_id', $conditions['provider_id']);
+        }
+
+        if (!empty($conditions['service_ids'])) {
+            $query->whereIn('id', $conditions['service_ids']);
+        }
+
+        return $query->update([
+            'price' => DB::raw("ROUND(price * $increaseFactor, 8)"),
+            'api_provider_price' => DB::raw("ROUND(api_provider_price * $increaseFactor, 8)")
+        ]);
     }
 }
