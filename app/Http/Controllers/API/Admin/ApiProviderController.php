@@ -627,6 +627,7 @@ class ApiProviderController extends Controller
                 'max_amount'         => $service['max'] ?? 0,
                 'average_time'       => $service['average_time'] ?? null,
                 'rate_per_1000'      => $service['rate'] ?? 0,
+                'price'              => $service['rate'] ?? 0,
                 'api_service_id'     => $service['service'],
                 'api_provider_id'    => $providerId,
                 'api_provider_price' => $service['rate'] ?? 0,
