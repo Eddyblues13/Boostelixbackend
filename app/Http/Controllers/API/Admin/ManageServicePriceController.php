@@ -43,7 +43,6 @@ class ManageServicePriceController extends Controller
             $stats = $query->selectRaw('
                 COUNT(*) as total_services,
                 AVG(price) as average_price,
-                AVG(api_provider_price) as average_provider_price,
                 MIN(price) as min_price,
                 MAX(price) as max_price,
                 SUM(price) as total_price_value

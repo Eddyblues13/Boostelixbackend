@@ -95,7 +95,7 @@ class Service extends Model
 
         return self::query()->update([
             'price' => DB::raw("ROUND(price * $increaseFactor, 8)"),
-            'api_provider_price' => DB::raw("ROUND(api_provider_price * $increaseFactor, 8)")
+
         ]);
     }
 
@@ -109,17 +109,14 @@ class Service extends Model
             $query->where('category_id', $conditions['category_id']);
         }
 
-        if (!empty($conditions['provider_id'])) {
-            $query->where('api_provider_id', $conditions['provider_id']);
-        }
 
         if (!empty($conditions['service_ids'])) {
             $query->whereIn('id', $conditions['service_ids']);
         }
 
         return $query->update([
-            'price' => DB::raw("ROUND(price * $increaseFactor, 8)"),
-            'api_provider_price' => DB::raw("ROUND(api_provider_price * $increaseFactor, 8)")
+            'price' => DB::raw("ROUND(price * $increaseFactor, 8)")
+
         ]);
     }
 }
