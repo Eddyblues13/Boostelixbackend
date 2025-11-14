@@ -55,6 +55,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/services', [ServiceController::class, 'index']);
     Route::get('/all-smm-services', [ServiceController::class, 'allSmmServices']);
     Route::get('/updates', [ServiceController::class, 'serviceUpdates']);
+    // Add this in the protected routes group
+    Route::get('/services/search', [ServiceController::class, 'searchServices']);
 
     // orders endpoint
     Route::post('/orders', [OrderController::class, 'store']);
