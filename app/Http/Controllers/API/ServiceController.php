@@ -63,22 +63,30 @@ class ServiceController extends Controller
                     'id',
                     'service_title',
                     'category_id',
-                    'api_provider_id',
+                    'link',
+                    'username',
                     'min_amount',
                     'max_amount',
-                    'average_time',
-                    'rate_per_1000',
                     'price',
+                    'price_percentage_increase',
                     'service_status',
-                    'description',
                     'service_type',
+                    'description',
+                    'rate_per_1000',
+                    'average_time',
+                    'api_provider_id',
+                    'api_service_id',
+                    'api_provider_price',
                     'drip_feed',
                     'refill',
                     'is_refill_automatic',
-                    'featured',
+                    'is_new',
+                    'is_recommended',
                     'created_at',
                     'updated_at'
-                ])->get();
+                ])
+                    ->where('service_status', 1)
+                    ->get();
             });
 
             return response()->json([
@@ -86,11 +94,12 @@ class ServiceController extends Controller
                 'data' => $services
             ]);
         } catch (\Exception $e) {
-            Log::error('ServiceController allServices error: ' . $e->getMessage());
+
+            Log::error('allServices error: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load services'
+                'message' => 'Error loading services'
             ], 500);
         }
     }
