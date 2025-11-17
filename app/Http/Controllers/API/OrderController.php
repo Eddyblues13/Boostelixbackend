@@ -2,21 +2,21 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Mail;
 use App\Models\Order;
 use App\Models\Service;
+use App\Mail\CustomMail;
 use App\Models\ApiProvider;
 use App\Models\Transaction;
-use App\Jobs\CreateGeneralNotificationJob;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use App\Models\GeneralNotification;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 
-
-use App\Mail\CustomMail;
+use Illuminate\Support\Facades\Validator;
+use App\Jobs\CreateGeneralNotificationJob;
 
 class OrderController extends Controller
 {
@@ -51,7 +51,6 @@ class OrderController extends Controller
             ], 404);
         }
 
-        // $basic = (object) config('basic');
         $quantity = $request->quantity;
 
         if ($service->drip_feed == 1 && $request->has('runs')) {
@@ -76,106 +75,82 @@ class OrderController extends Controller
             ], 400);
         }
 
-        $order = new Order();
-        $order->user_id = $user->id;
-        $order->category_id = $request->category;
-        $order->service_id = $request->service;
-        $order->link = $request->link;
-        $order->quantity = $request->quantity;
-        $order->status = Order::STATUS_PROCESSING;
-        $order->price = $price;
-        $order->runs = $request->runs ?? null;
-        $order->interval = $request->interval ?? null;
-        // $order->start_time = $service->start_time ?? '5-30 minutes';
-        // $order->speed = $service->speed ?? '100-1000/hour';
-        // $order->avg_time = $service->avg_time ?? '7 hours 43 minutes';
-        // $order->guarantee = $service->guarantee ?? '30 days';
+        // Use database transaction for atomic operations
+        DB::transaction(function () use ($user, $price, $request, $service, &$order) {
+            // Decrement user balance atomically
+            $user->decrement('balance', $price);
 
-        if ($service->api_provider_id) {
-            $apiProvider = ApiProvider::find($service->api_provider_id);
-            if ($apiProvider) {
-                $postData = [
-                    'key' => $apiProvider->api_key,
-                    'action' => 'add',
-                    'service' => $service->api_service_id,
-                    'link' => $request->link,
-                    'quantity' => $request->quantity
-                ];
+            // Refresh user model to get updated balance
+            $user->refresh();
 
-                if ($request->has('runs')) {
-                    $postData['runs'] = $request->runs;
-                }
+            $order = new Order();
+            $order->user_id = $user->id;
+            $order->category_id = $request->category;
+            $order->service_id = $request->service;
+            $order->link = $request->link;
+            $order->quantity = $request->quantity;
+            $order->status = Order::STATUS_PROCESSING;
+            $order->price = $price;
+            $order->runs = $request->runs ?? null;
+            $order->interval = $request->interval ?? null;
 
-                if ($request->has('interval')) {
-                    $postData['interval'] = $request->interval;
-                }
+            if ($service->api_provider_id) {
+                $apiProvider = ApiProvider::find($service->api_provider_id);
+                if ($apiProvider) {
+                    $postData = [
+                        'key' => $apiProvider->api_key,
+                        'action' => 'add',
+                        'service' => $service->api_service_id,
+                        'link' => $request->link,
+                        'quantity' => $request->quantity
+                    ];
 
-                try {
-                    $response = Http::asForm()->post($apiProvider->url, $postData);
-                    $apiData = $response->json();
+                    if ($request->has('runs')) {
+                        $postData['runs'] = $request->runs;
+                    }
 
-                    if (isset($apiData['order'])) {
-                        $order->status_description = "order: {$apiData['order']}";
-                        $order->api_order_id = $apiData['order'];
-                    } else {
-                        $order->status_description = "error: {$apiData['error']}";
+                    if ($request->has('interval')) {
+                        $postData['interval'] = $request->interval;
+                    }
+
+                    try {
+                        $response = Http::asForm()->post($apiProvider->url, $postData);
+                        $apiData = $response->json();
+
+                        if (isset($apiData['order'])) {
+                            $order->status_description = "order: {$apiData['order']}";
+                            $order->api_order_id = $apiData['order'];
+                        } else {
+                            $order->status_description = "error: {$apiData['error']}";
+                            $order->status = Order::STATUS_CANCELLED;
+                        }
+                    } catch (\Exception $e) {
+                        $order->status_description = "error: API connection failed";
                         $order->status = Order::STATUS_CANCELLED;
                     }
-                } catch (\Exception $e) {
-                    $order->status_description = "error: API connection failed";
-                    $order->status = Order::STATUS_CANCELLED;
                 }
             }
-        }
 
-        $order->save();
+            $order->save();
 
-        $user->balance -= $price;
-        $user->save();
+            Transaction::create([
+                'user_id' => $user->id,
+                'transaction_id' => str()->random(20),
+                'transaction_type' => 'Debit',
+                'amount' => $price,
+                'charge' => 0,
+                'description' => 'Place order',
+                'status' => 'completed',
+                'meta' => null,
+            ]);
 
-        $transaction = Transaction::create([
-            'user_id' => $user->id,
-            'transaction_id' => str()->random(20),
-            'transaction_type' => 'Debit',
-            'amount' => $price,
-            'charge' => 0,
-            'description' => 'Place order',
-            'status' => 'pending',
-            'meta' => null,
-        ]);
-
-        CreateGeneralNotificationJob::dispatch([
-    'user_id' => Auth::id(),
-    'type' => 'order',
-    'title' => 'Order Placed Successfully',
-    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
-]);
-
-// (new \App\Jobs\CreateGeneralNotificationJob([
-//     'user_id' => Auth::id(),
-//     'type' => 'order',
-//     'title' => 'Order Placed Successfully',
-//     'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
-// ]))->handle();
-
-
-        // Send email using CustomMail
-        // $emailBody = view('email.order_confirm', [
-        //     'user' => $user,
-        //     'order_id' => $order->id,
-        //     'order_at' => $order->created_at,
-        //     'service' => optional($order->service)->service_title,
-        //     'status' => $order->status,
-        //     'paid_amount' => $price,
-        //     'remaining_balance' => $user->balance,
-        //     'currency' => "$",
-        //     'transaction' => $transaction->trx_id,
-        // ])->render();
-
-        // Mail::to($user->email)->send(new CustomMail(
-        //     subject: "Order Confirmation #{$order->id}",
-        //     messageBody: $emailBody
-        // ));
+            CreateGeneralNotificationJob::dispatch([
+                'user_id' => Auth::id(),
+                'type' => 'order',
+                'title' => 'Order Placed Successfully',
+                'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
+            ]);
+        });
 
         return response()->json([
             'status' => 'success',
@@ -184,8 +159,6 @@ class OrderController extends Controller
             'balance' => $user->balance
         ]);
     }
-
-
 
     public function history(Request $request)
     {
