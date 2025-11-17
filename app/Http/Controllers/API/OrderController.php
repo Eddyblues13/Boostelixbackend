@@ -64,7 +64,8 @@ class OrderController extends Controller
         }
 
         $userRate = $service->user_rate ?? $service->price;
-        $price = round(($quantity * $userRate) / 1000, 2);
+        $price = round(($quantity * $userRate), 2);
+        // $price = round(($quantity * $userRate) / 1000, 2);
 
         $user = Auth::user();
         if ($user->balance < $price) {
