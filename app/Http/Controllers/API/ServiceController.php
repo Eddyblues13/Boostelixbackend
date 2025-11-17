@@ -69,10 +69,10 @@ class ServiceController extends Controller
                     'rate_per_1000',
                     'service_status'
                 ])
-                    ->with([
-                        'category:id,category_title',
-                        'provider:id,name'
-                    ])
+                    // ->with([
+                    //     'category:id,category_title',
+                    //     'provider:id,name'
+                    // ])
                     ->get();
             });
 
