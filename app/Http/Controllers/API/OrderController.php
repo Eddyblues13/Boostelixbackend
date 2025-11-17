@@ -179,24 +179,34 @@ class OrderController extends Controller
         $status = $request->input('status', 'all');
         $search = $request->input('search', '');
         $perPage = $request->input('per_page', 15);
+        $sortBy = $request->input('sort_by', 'created_at');
+        $sortOrder = $request->input('sort_order', 'desc');
 
         $query = Order::with(['service:id,service_title', 'category:id,category_title'])
-            ->where('user_id', $user->id)
-            ->orderBy('created_at', 'desc');
+            ->where('user_id', $user->id);
 
         // Filter by status
         if ($status !== 'all') {
             $query->where('status', $status);
         }
 
-        // Search functionality
+        // Search functionality - FIXED: use correct column name
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('link', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%")
                     ->orWhereHas('service', function ($serviceQuery) use ($search) {
-                        $serviceQuery->where('name', 'like', "%{$search}%");
+                        $serviceQuery->where('service_title', 'like', "%{$search}%"); // FIXED: was 'name'
                     });
             });
+        }
+
+        // Sorting
+        $validSortColumns = ['id', 'created_at', 'price', 'quantity', 'status', 'user_id', 'service_id'];
+        if (in_array($sortBy, $validSortColumns)) {
+            $query->orderBy($sortBy, $sortOrder);
+        } else {
+            $query->orderBy('created_at', 'desc');
         }
 
         $orders = $query->paginate($perPage);
@@ -206,16 +216,27 @@ class OrderController extends Controller
             'data' => $orders->map(function ($order) {
                 return [
                     'id' => $order->id,
-                    'order_id' => 'ORD' . str_pad($order->id, 4, '0', STR_PAD_LEFT),
-                    'date' => $order->created_at->format('Y-m-d'),
+                    'user_id' => $order->user_id,
+                    'service_id' => $order->service_id,
+                    'api_order_id' => $order->api_order_id,
+                    'category_id' => $order->category_id,
                     'link' => $order->link,
-                    'charge' => '₦' . number_format($order->price, 2),
-                    'start_count' => number_format($order->start_counter ?? 0),
-                    'quantity' => number_format($order->quantity),
-                    'service' => $order->service->name ?? 'N/A',
+                    'price' => (float) $order->price,
+                    'quantity' => (int) $order->quantity,
+                    'start_counter' => (int) $order->start_counter,
+                    'remains' => (int) $order->remains,
                     'status' => $order->status,
-                    'remains' => number_format($order->remains ?? 0),
                     'status_description' => $order->status_description,
+                    'reason' => $order->reason,
+                    'runs' => $order->runs,
+                    'interval' => $order->interval,
+                    'drip_feed' => $order->drip_feed,
+                    'refilled_at' => $order->refilled_at,
+                    'created_at' => $order->created_at,
+                    'updated_at' => $order->updated_at,
+                    // Additional helpful fields
+                    'service_name' => $order->service->service_title ?? 'N/A',
+                    'category_name' => $order->category->category_title ?? 'N/A',
                 ];
             }),
             'meta' => [
@@ -227,11 +248,11 @@ class OrderController extends Controller
             'status_counts' => [
                 'all' => Order::where('user_id', $user->id)->count(),
                 'pending' => Order::where('user_id', $user->id)->where('status', 'pending')->count(),
-                'in-progress' => Order::where('user_id', $user->id)->where('status', 'in-progress')->count(),
+                'processing' => Order::where('user_id', $user->id)->where('status', 'processing')->count(),
                 'completed' => Order::where('user_id', $user->id)->where('status', 'completed')->count(),
                 'partial' => Order::where('user_id', $user->id)->where('status', 'partial')->count(),
-                'processing' => Order::where('user_id', $user->id)->where('status', 'processing')->count(),
-                'canceled' => Order::where('user_id', $user->id)->where('status', 'canceled')->count(),
+                'cancelled' => Order::where('user_id', $user->id)->where('status', 'cancelled')->count(),
+                'failed' => Order::where('user_id', $user->id)->where('status', 'failed')->count(),
             ]
         ]);
     }
