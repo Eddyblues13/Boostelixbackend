@@ -52,7 +52,6 @@ class OrderController extends Controller
         }
 
         $quantity = $request->quantity;
-
         if ($service->drip_feed == 1 && $request->has('runs')) {
             $quantity = $request->quantity * $request->runs;
         }
@@ -65,7 +64,7 @@ class OrderController extends Controller
         }
 
         $userRate = $service->user_rate ?? $service->price;
-        $price = round(($quantity * $userRate) / 1000);
+        $price = round(($quantity * $userRate) / 1000, 2);
 
         $user = Auth::user();
         if ($user->balance < $price) {
@@ -75,90 +74,102 @@ class OrderController extends Controller
             ], 400);
         }
 
-        // Use database transaction for atomic operations
-        DB::transaction(function () use ($user, $price, $request, $service, &$order) {
-            // Decrement user balance atomically
-            $user->decrement('balance', $price);
+        $order = null;
 
-            // Refresh user model to get updated balance
-            $user->refresh();
+        try {
+            DB::transaction(function () use ($user, $price, $request, $service, &$order) {
+                // Deduct balance
+                $user->decrement('balance', $price);
 
-            $order = new Order();
-            $order->user_id = $user->id;
-            $order->category_id = $request->category;
-            $order->service_id = $request->service;
-            $order->link = $request->link;
-            $order->quantity = $request->quantity;
-            $order->status = Order::STATUS_PROCESSING;
-            $order->price = $price;
-            $order->runs = $request->runs ?? null;
-            $order->interval = $request->interval ?? null;
+                // Create order
+                $order = new Order();
+                $order->user_id = $user->id;
+                $order->category_id = $request->category;
+                $order->service_id = $request->service;
+                $order->link = $request->link;
+                $order->quantity = $request->quantity;
+                $order->status = Order::STATUS_PROCESSING;
+                $order->price = $price;
+                $order->runs = $request->runs ?? null;
+                $order->interval = $request->interval ?? null;
 
-            if ($service->api_provider_id) {
-                $apiProvider = ApiProvider::find($service->api_provider_id);
-                if ($apiProvider) {
-                    $postData = [
-                        'key' => $apiProvider->api_key,
-                        'action' => 'add',
-                        'service' => $service->api_service_id,
-                        'link' => $request->link,
-                        'quantity' => $request->quantity
-                    ];
+                // Handle API provider
+                if ($service->api_provider_id) {
+                    $apiProvider = ApiProvider::find($service->api_provider_id);
+                    if ($apiProvider) {
+                        $postData = [
+                            'key' => $apiProvider->api_key,
+                            'action' => 'add',
+                            'service' => $service->api_service_id,
+                            'link' => $request->link,
+                            'quantity' => $request->quantity,
+                        ];
 
-                    if ($request->has('runs')) {
-                        $postData['runs'] = $request->runs;
-                    }
+                        if ($request->has('runs')) $postData['runs'] = $request->runs;
+                        if ($request->has('interval')) $postData['interval'] = $request->interval;
 
-                    if ($request->has('interval')) {
-                        $postData['interval'] = $request->interval;
-                    }
+                        try {
+                            $response = Http::asForm()->post($apiProvider->url, $postData);
+                            $apiData = $response->json();
 
-                    try {
-                        $response = Http::asForm()->post($apiProvider->url, $postData);
-                        $apiData = $response->json();
+                            if (isset($apiData['order'])) {
+                                $order->status_description = "order: {$apiData['order']}";
+                                $order->api_order_id = $apiData['order'];
+                            } else {
+                                $order->status_description = "error: {$apiData['error']}";
+                                $order->status = Order::STATUS_CANCELLED;
 
-                        if (isset($apiData['order'])) {
-                            $order->status_description = "order: {$apiData['order']}";
-                            $order->api_order_id = $apiData['order'];
-                        } else {
-                            $order->status_description = "error: {$apiData['error']}";
+                                // Refund user if API fails
+                                $user->increment('balance', $price);
+                            }
+                        } catch (\Exception $e) {
+                            $order->status_description = "error: API connection failed";
                             $order->status = Order::STATUS_CANCELLED;
+
+                            // Refund user if API fails
+                            $user->increment('balance', $price);
                         }
-                    } catch (\Exception $e) {
-                        $order->status_description = "error: API connection failed";
-                        $order->status = Order::STATUS_CANCELLED;
                     }
                 }
-            }
 
-            $order->save();
+                $order->save();
 
-            Transaction::create([
-                'user_id' => $user->id,
-                'transaction_id' => str()->random(20),
-                'transaction_type' => 'Debit',
-                'amount' => $price,
-                'charge' => 0,
-                'description' => 'Place order',
-                'status' => 'completed',
-                'meta' => null,
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'transaction_id' => str()->random(20),
+                    'transaction_type' => 'Debit',
+                    'amount' => $price,
+                    'charge' => 0,
+                    'description' => 'Place order',
+                    'status' => $order->status == Order::STATUS_CANCELLED ? 'refunded' : 'completed',
+                    'meta' => null,
+                ]);
+
+                CreateGeneralNotificationJob::dispatch([
+                    'user_id' => $user->id,
+                    'type' => 'order',
+                    'title' => 'Order Placed Successfully',
+                    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
+                ]);
+            });
+
+            // Refresh user AFTER transaction to get updated balance
+            $user->refresh();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Order submitted successfully',
+                'order_id' => $order->id,
+                'balance' => $user->balance
             ]);
-
-            CreateGeneralNotificationJob::dispatch([
-                'user_id' => Auth::id(),
-                'type' => 'order',
-                'title' => 'Order Placed Successfully',
-                'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
-            ]);
-        });
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Order submitted successfully',
-            'order_id' => $order->id,
-            'balance' => $user->balance
-        ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to place order: ' . $e->getMessage()
+            ], 500);
+        }
     }
+
 
     public function history(Request $request)
     {
