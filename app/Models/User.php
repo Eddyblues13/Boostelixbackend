@@ -25,6 +25,7 @@ class User extends Authenticatable
         'last_name',
         'username',
         'currency',
+        'balance',
         'email',
         'status',
         'password',
