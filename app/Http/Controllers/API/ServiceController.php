@@ -54,6 +54,7 @@ class ServiceController extends Controller
         }
     }
 
+
     public function allServices(): JsonResponse
     {
         try {
@@ -65,15 +66,19 @@ class ServiceController extends Controller
                     'api_provider_id',
                     'min_amount',
                     'max_amount',
-                    'price',
+                    'average_time',
                     'rate_per_1000',
-                    'service_status'
-                ])
-                    // ->with([
-                    //     'category:id,category_title',
-                    //     'provider:id,name'
-                    // ])
-                    ->get();
+                    'price',
+                    'service_status',
+                    'description',
+                    'service_type',
+                    'drip_feed',
+                    'refill',
+                    'is_refill_automatic',
+                    'featured',
+                    'created_at',
+                    'updated_at'
+                ])->get();
             });
 
             return response()->json([
@@ -82,12 +87,49 @@ class ServiceController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('ServiceController allServices error: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to load services'
             ], 500);
         }
     }
+
+
+    // public function allServices(): JsonResponse
+    // {
+    //     try {
+    //         $services = Cache::remember('all_services_essential', 600, function () {
+    //             return Service::select([
+    //                 'id',
+    //                 'service_title',
+    //                 'category_id',
+    //                 'api_provider_id',
+    //                 'min_amount',
+    //                 'max_amount',
+    //                 'price',
+    //                 'rate_per_1000',
+    //                 'service_status'
+    //             ])
+    //                 // ->with([
+    //                 //     'category:id,category_title',
+    //                 //     'provider:id,name'
+    //                 // ])
+    //                 ->get();
+    //         });
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'data' => $services
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         Log::error('ServiceController allServices error: ' . $e->getMessage());
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Failed to load services'
+    //         ], 500);
+    //     }
+    // }
 
     public function allSmmServices(Request $request): JsonResponse
     {
