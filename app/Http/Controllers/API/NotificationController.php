@@ -30,10 +30,19 @@ class NotificationController extends Controller
                 ->orderBy('created_at', 'desc')
                 ->get();
 
+            // Handle case where is_read column might not exist
+            $unreadCount = 0;
+            try {
+                $unreadCount = $notifications->where('is_read', false)->count();
+            } catch (\Exception $e) {
+                // If is_read doesn't exist, count all as unread or none
+                $unreadCount = 0;
+            }
+
             return response()->json([
                 'status' => 'success',
                 'data' => $notifications,
-                'unread_count' => $notifications->where('is_read', false)->count()
+                'unread_count' => $unreadCount
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to fetch notifications: ' . $e->getMessage(), [

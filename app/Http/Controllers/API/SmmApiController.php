@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -139,14 +139,19 @@ class SmmApiController extends Controller
     public function getServices(Request $request)
     {
         try {
-            // Validate API key
-            if (!$request->key) {
-                return response()->json(['error' => 'API key is required'], 401);
-            }
-
-            $user = User::where('api_key', $request->key)->first();
+            // User is authenticated by VerifyApiKey middleware
+            $user = Auth::user();
+            
             if (!$user) {
-                return response()->json(['error' => 'Invalid API key'], 401);
+                // Fallback validation if middleware didn't run
+                $apiKey = $request->input('key') ?? $request->header('X-API-KEY');
+                if (!$apiKey) {
+                    return response()->json(['error' => 'API key is required'], 401);
+                }
+                $user = User::where('api_key', $apiKey)->first();
+                if (!$user) {
+                    return response()->json(['error' => 'Invalid API key'], 401);
+                }
             }
 
             // Get provider configuration
@@ -157,26 +162,47 @@ class SmmApiController extends Controller
 
             // First try to get services from database
             $services = Service::with('category')
-                ->where('service_status', 1) // Changed from 'status' to 'service_status'
+                ->where('service_status', 1)
                 ->where('api_provider_id', $provider->id)
                 ->get()
                 ->map(function ($service) {
                     return [
                         'service' => $service->id,
-                        'name' => $service->service_title, // Changed from 'name' to 'service_title'
-                        'category' => $service->category->name ?? 'Uncategorized',
-                        'rate' => (float)$service->rate_per_1000, // Changed to match your column
+                        'name' => $service->service_title,
+                        'category' => $service->category->category_title ?? 'Uncategorized',
+                        'rate' => (float)($service->price ?? $service->rate_per_1000 ?? 0),
                         'min' => (int)$service->min_amount,
                         'max' => (int)$service->max_amount,
                         'provider_id' => $service->api_service_id,
-                        'type' => $service->service_type, // Added service_type
-                        'refill' => (bool)$service->refill,
-                        'drip_feed' => (bool)$service->drip_feed
+                        'type' => $service->service_type ?? 'default',
+                        'refill' => (bool)($service->refill ?? false),
+                        'drip_feed' => (bool)($service->drip_feed ?? false)
                     ];
                 });
 
-            // If no services in DB, fetch from provider
+            // If no services in DB for this provider, get all active services
             if ($services->isEmpty()) {
+                $services = Service::with('category')
+                    ->where('service_status', 1)
+                    ->get()
+                    ->map(function ($service) {
+                        return [
+                            'service' => $service->id,
+                            'name' => $service->service_title,
+                            'category' => $service->category->category_title ?? 'Uncategorized',
+                            'rate' => (float)($service->price ?? $service->rate_per_1000 ?? 0),
+                            'min' => (int)$service->min_amount,
+                            'max' => (int)$service->max_amount,
+                            'provider_id' => $service->api_service_id,
+                            'type' => $service->service_type ?? 'default',
+                            'refill' => (bool)($service->refill ?? false),
+                            'drip_feed' => (bool)($service->drip_feed ?? false)
+                        ];
+                    });
+            }
+
+            // If still no services, try fetching from provider API
+            if ($services->isEmpty() && $provider) {
                 $response = Http::withHeaders([
                     'Authorization' => 'Bearer ' . $provider->api_key,
                     'Accept' => 'application/json',
@@ -283,7 +309,7 @@ class SmmApiController extends Controller
             return response()->json(['error' => 'Service not found'], 404);
         }
 
-        Log::info('Service:', ['id' => $service->id, 'rate' => $service->rate]);
+        Log::info('Service:', ['id' => $service->id, 'price' => $service->price, 'rate_per_1000' => $service->rate_per_1000]);
         $user = $this->validateApiKey($request);
         if ($user instanceof \Illuminate\Http\JsonResponse) {
             return $user;
@@ -307,8 +333,9 @@ class SmmApiController extends Controller
             ], 400);
         }
 
-        // Calculate price
-        $price = $service->rate * $request->quantity;
+        // Calculate price - use price if available, otherwise calculate from rate_per_1000
+        $ratePerUnit = $service->price ?? ($service->rate_per_1000 / 1000);
+        $price = $ratePerUnit * $request->quantity;
         if ($user->balance < $price) {
             return response()->json(['error' => 'Insufficient balance'], 400);
         }
@@ -500,7 +527,13 @@ class SmmApiController extends Controller
 
         $order = Order::with('service')->findOrFail($request->order);
 
-        if (!$order->service->is_refill) {
+        // Check if service exists and has refill enabled
+        if (!$order->service) {
+            return response()->json(['error' => 'Service not found for this order'], 400);
+        }
+
+        $isRefillEnabled = $order->service->refill ?? false;
+        if (!$isRefillEnabled) {
             return response()->json(['error' => 'Refill not available for this service'], 400);
         }
 
@@ -582,7 +615,7 @@ class SmmApiController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('link', 'like', "%{$search}%")
                     ->orWhereHas('service', function ($q) use ($search) {
-                        $q->where('name', 'like', "%{$search}%");
+                        $q->where('service_title', 'like', "%{$search}%");
                     });
             });
         }

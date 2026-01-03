@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use GuzzleHttp\Client;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\AffiliateProgram;
+use App\Models\AffiliateReferral;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -218,6 +220,9 @@ class PaymentController extends Controller
                         'amount' => $payment->amount,
                         'new_balance' => $user->balance
                     ]);
+
+                    // 💰 Calculate and credit affiliate commission
+                    $this->calculateAffiliateCommission($user, $payment->amount);
                 } elseif (in_array($normalizedStatus, ['cancelled', 'failed'])) {
                     $payment->update(['status' => 'failed']);
                     Log::info('❌ Payment failed', ['transaction_id' => $payment->id]);
@@ -325,6 +330,9 @@ class PaymentController extends Controller
                                 'amount' => $transaction->amount,
                                 'new_balance' => $transaction->user->balance
                             ]);
+
+                            // 💰 Calculate and credit affiliate commission
+                            $this->calculateAffiliateCommission($transaction->user, $transaction->amount);
                         }
                     } else {
                         $transaction->update(['status' => 'failed']);
@@ -354,6 +362,9 @@ class PaymentController extends Controller
                         'user_id' => $transaction->user_id,
                         'amount' => $transaction->amount
                     ]);
+
+                    // 💰 Calculate and credit affiliate commission
+                    $this->calculateAffiliateCommission($transaction->user, $transaction->amount);
                 }
             }
 

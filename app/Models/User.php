@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Models\Order;
+use App\Models\AffiliateProgram;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,6 +40,7 @@ class User extends Authenticatable
         'push_orders',
         'push_promotions',
         'push_updates',
+        'referred_by',
     ];
 
     /**
@@ -80,5 +82,20 @@ class User extends Authenticatable
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function affiliateProgram()
+    {
+        return $this->hasOne(AffiliateProgram::class);
+    }
+
+    public function referrer()
+    {
+        return $this->belongsTo(User::class, 'referred_by');
+    }
+
+    public function referrals()
+    {
+        return $this->hasMany(User::class, 'referred_by');
     }
 }

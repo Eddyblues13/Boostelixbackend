@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Models\User;
+use App\Models\AffiliateProgram;
+use App\Models\AffiliateReferral;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
@@ -56,6 +58,32 @@ class RegisterController extends Controller
                 $currency = $currencyMap[$country] ?? 'NGN';
             }
 
+            // ✅ Check for referral code from session or request
+            $referralCode = $request->input('referral_code') ?? session('affiliate_code');
+            $referredBy = null;
+
+            if ($referralCode) {
+                $affiliateProgram = \App\Models\AffiliateProgram::where('referral_code', $referralCode)->first();
+                if ($affiliateProgram) {
+                    $referredBy = $affiliateProgram->user_id;
+                    
+                    // Increment registration count
+                    $stats = $affiliateProgram->stats;
+                    if ($stats) {
+                        $stats->increment('registrations');
+                        
+                        // Calculate conversion rate
+                        $visits = $stats->visits;
+                        $registrations = $stats->registrations;
+                        $conversionRate = $visits > 0 ? ($registrations / $visits) * 100 : 0;
+                        $stats->update(['conversion_rate' => $conversionRate]);
+                    }
+                    
+                    // Clear session
+                    session()->forget('affiliate_code');
+                }
+            }
+
             // ✅ Create the user
             $user = User::create([
                 'first_name' => $validated['first_name'] ?? null,
@@ -64,7 +92,23 @@ class RegisterController extends Controller
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'currency' => $currency,
+                'referred_by' => $referredBy,
             ]);
+
+            // ✅ Create referral record if referred
+            if ($referredBy && $affiliateProgram) {
+                \App\Models\AffiliateReferral::create([
+                    'affiliate_program_id' => $affiliateProgram->id,
+                    'referred_user_id' => $user->id,
+                    'status' => 'active',
+                    'commission_earned' => 0
+                ]);
+                
+                // Update referrals count
+                if ($stats) {
+                    $stats->increment('referrals');
+                }
+            }
 
             return response()->json([
                 'success' => true,

@@ -15,7 +15,11 @@ class VerifyApiKey
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $apiKey = $request->header('X-API-KEY') ?? $request->query('api_key');
+        // Check for API key in multiple places: header, query parameter, or request body
+        $apiKey = $request->header('X-API-KEY') 
+            ?? $request->input('key') 
+            ?? $request->query('key')
+            ?? $request->query('api_key');
 
         if (!$apiKey) {
             return response()->json([
@@ -33,8 +37,8 @@ class VerifyApiKey
             ], 401);
         }
 
-        // Optionally set the authenticated user
-        Auth::login($user);
+        // Set the authenticated user so controllers can access it via Auth::user()
+        Auth::setUser($user);
 
         return $next($request);
     }

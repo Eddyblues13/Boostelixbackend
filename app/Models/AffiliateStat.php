@@ -15,7 +15,8 @@ class AffiliateStat extends Model
         'referrals',
         'conversion_rate',
         'total_earnings',
-        'available_earnings'
+        'available_earnings',
+        'paid_earnings'
     ];
 
     public function program()

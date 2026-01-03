@@ -147,8 +147,8 @@ Route::get('/test-db', function () {
 
 
 Route::prefix('v2')->group(function () {
-    // Authentication middleware for API endpoints
-    Route::middleware(['auth:API', 'throttle:60,1'])->group(function () {
+    // API endpoints - authenticated via API key (handled by VerifyApiKey middleware)
+    Route::middleware(['verify.api.key', 'throttle:60,1'])->group(function () {
         // Service list
         Route::post('/services', [SmmAPIController::class, 'getServices']);
 
@@ -165,7 +165,7 @@ Route::prefix('v2')->group(function () {
         Route::post('/balance', [SmmAPIController::class, 'getBalance']);
     });
 
-    // API key generation
+    // API key generation (requires Sanctum authentication - user must be logged in)
     Route::post('/generate-key', [SmmAPIController::class, 'generateAPIKey'])
         ->middleware('auth:sanctum');
 });

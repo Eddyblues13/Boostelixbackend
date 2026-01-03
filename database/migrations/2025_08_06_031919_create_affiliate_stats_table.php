@@ -20,6 +20,7 @@ return new class extends Migration
             $table->decimal('conversion_rate', 5, 2)->default(0);
             $table->decimal('total_earnings', 10, 2)->default(0);
             $table->decimal('available_earnings', 10, 2)->default(0);
+            $table->decimal('paid_earnings', 10, 2)->default(0);
             $table->timestamps();
         });
     }
