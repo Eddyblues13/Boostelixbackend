@@ -314,10 +314,21 @@ class ServiceController extends Controller
     {
         try {
             $updates = Cache::remember('service_updates', 3600, function () {
-                return ServiceUpdate::select(['id', 'title', 'description', 'date', 'created_at'])
+                return ServiceUpdate::select(['id', 'service', 'details', 'update', 'category', 'date', 'created_at'])
                     ->orderBy('date', 'desc')
                     ->orderBy('created_at', 'desc')
-                    ->get();
+                    ->get()
+                    ->map(function ($update) {
+                        return [
+                            'id' => $update->id,
+                            'service' => $update->service ?? '',
+                            'details' => $update->details ?? '',
+                            'update' => $update->update ?? '',
+                            'category' => $update->category ?? '',
+                            'date' => $update->date ? date('Y-m-d', strtotime($update->date)) : ($update->created_at ? $update->created_at->format('Y-m-d') : ''),
+                            'created_at' => $update->created_at ? $update->created_at->format('Y-m-d H:i:s') : null,
+                        ];
+                    });
             });
 
             return response()->json([
@@ -325,10 +336,14 @@ class ServiceController extends Controller
                 'data' => $updates
             ]);
         } catch (\Exception $e) {
-            Log::error('ServiceController serviceUpdates error: ' . $e->getMessage());
+            Log::error('ServiceController serviceUpdates error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load service updates'
+                'message' => 'Failed to load service updates',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'data' => []
             ], 500);
         }
     }
