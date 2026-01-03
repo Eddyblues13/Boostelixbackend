@@ -143,11 +143,9 @@ class ServiceController extends Controller
     public function allSmmServices(Request $request): JsonResponse
     {
         try {
-            $page = $request->get('page', 1);
-            $perPage = $request->get('per_page', 15);
-            $cacheKey = 'smm_services_' . md5(serialize($request->all()) . '_page_' . $page);
+            $cacheKey = 'smm_services_' . md5(serialize($request->all()));
 
-            $result = Cache::remember($cacheKey, 300, function () use ($request, $perPage) {
+            $result = Cache::remember($cacheKey, 300, function () use ($request) {
                 $query = Service::select([
                     'id',
                     'service_title',
@@ -159,38 +157,49 @@ class ServiceController extends Controller
                     'rate_per_1000',
                     'average_time',
                     'description',
-                    'is_new',
-                    'is_recommended',
                     'service_status'
                 ])
                     ->with([
-                        'category:id,category_title,slug',
-                        'apiProvider:id,name'
+                        'category:id,category_title'
                     ])
                     ->where('service_status', 1);
 
+                // Handle is_new filter if column exists
+                if ($request->has('is_new')) {
+                    try {
+                        $query->where('is_new', boolval($request->is_new));
+                    } catch (\Exception $e) {
+                        // Column might not exist, skip
+                    }
+                }
+
+                // Handle is_recommended filter if column exists
+                if ($request->has('is_recommended')) {
+                    try {
+                        $query->where('is_recommended', boolval($request->is_recommended));
+                    } catch (\Exception $e) {
+                        // Column might not exist, skip
+                    }
+                }
+
+                // Handle category filter
                 if ($request->filled('category') && $request->category !== 'all') {
                     $query->whereHas('category', function ($q) use ($request) {
-                        $q->where('slug', $request->category);
+                        $categoryTitle = str_replace('-', ' ', $request->category);
+                        $q->where('category_title', 'LIKE', '%' . $categoryTitle . '%');
                     });
                 }
 
+                // Handle search
                 if ($request->filled('search')) {
                     $searchTerm = $request->search;
                     $query->where(function ($q) use ($searchTerm) {
-                        $q->where('service_title', 'LIKE', $searchTerm . '%')
+                        $q->where('service_title', 'LIKE', '%' . $searchTerm . '%')
                             ->orWhere('description', 'LIKE', '%' . $searchTerm . '%');
                     });
                 }
 
-                if ($request->has('is_new')) {
-                    $query->where('is_new', boolval($request->is_new));
-                }
-
-                if ($request->has('is_recommended')) {
-                    $query->where('is_recommended', boolval($request->is_recommended));
-                }
-
+                // Handle sorting
                 if ($request->has('sort')) {
                     switch ($request->sort) {
                         case 'price-low':
@@ -200,7 +209,7 @@ class ServiceController extends Controller
                             $query->orderBy('price', 'desc');
                             break;
                         case 'popular':
-                            $query->orderBy('orders_count', 'desc');
+                            $query->orderBy('id', 'desc'); // Fallback if orders_count doesn't exist
                             break;
                         default:
                             $query->orderBy('id', 'desc');
@@ -209,15 +218,45 @@ class ServiceController extends Controller
                     $query->orderBy('id', 'desc');
                 }
 
-                return $query->paginate($perPage);
+                $services = $query->get()->map(function($service) {
+                    // Generate slug for category if needed
+                    $categorySlug = null;
+                    if ($service->category) {
+                        $categorySlug = strtolower(trim(preg_replace('/[^A-Za-z0-9]+/', '-', $service->category->category_title), '-'));
+                    }
+
+                    return [
+                        'id' => $service->id,
+                        'service_title' => $service->service_title,
+                        'category_id' => $service->category_id,
+                        'category' => $service->category ? [
+                            'id' => $service->category->id,
+                            'category_title' => $service->category->category_title,
+                            'slug' => $categorySlug,
+                            'name' => $service->category->category_title,
+                        ] : null,
+                        'price' => (float) ($service->price ?? 0),
+                        'min_amount' => (int) ($service->min_amount ?? 0),
+                        'max_amount' => (int) ($service->max_amount ?? 0),
+                        'average_time' => $service->average_time ?? 'N/A',
+                        'description' => $service->description,
+                        'rate_per_1000' => (float) ($service->rate_per_1000 ?? 0),
+                    ];
+                });
+
+                return $services;
             });
 
-            return response()->json($result);
+            return response()->json([
+                'data' => $result
+            ]);
         } catch (\Exception $e) {
-            Log::error('ServiceController allSmmServices error: ' . $e->getMessage());
+            Log::error('ServiceController allSmmServices error: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load services'
+                'message' => 'Failed to load services',
+                'error' => $e->getMessage(),
+                'data' => []
             ], 500);
         }
     }

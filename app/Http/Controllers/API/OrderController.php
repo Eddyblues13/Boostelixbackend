@@ -10,11 +10,12 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\GeneralNotification;
+use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Mail;
 
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use App\Jobs\CreateGeneralNotificationJob;
 
@@ -22,151 +23,248 @@ class OrderController extends Controller
 {
     public function store(Request $request)
     {
-        $rules = [
-            'category' => 'required|integer|min:1|not_in:0',
-            'service' => 'required|integer|min:1|not_in:0',
-            'link' => 'required|url',
-            'quantity' => 'required|integer',
-            'check' => 'required|accepted',
-        ];
-
-        if ($request->has('runs') || $request->has('interval')) {
-            $rules['runs'] = 'required|integer|min:1';
-            $rules['interval'] = 'required|integer|min:1';
-        }
-
-        $validator = Validator::make($request->all(), $rules);
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => $validator->errors()->first()
-            ], 422);
-        }
-
-        $service = Service::userRate()->find($request->service);
-        if (!$service) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Service not found'
-            ], 404);
-        }
-
-        $quantity = $request->quantity;
-        if ($service->drip_feed == 1 && $request->has('runs')) {
-            $quantity = $request->quantity * $request->runs;
-        }
-
-        if ($quantity < $service->min_amount || $quantity > $service->max_amount) {
-            return response()->json([
-                'status' => 'error',
-                'message' => "Quantity must be between {$service->min_amount} and {$service->max_amount}"
-            ], 422);
-        }
-
-        $userRate = $service->user_rate ?? $service->price;
-        $price = round(($quantity * $userRate), 2);
-        // $price = round(($quantity * $userRate) / 1000, 2);
-
-        $user = Auth::user();
-        if ($user->balance < $price) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Insufficient balance'
-            ], 400);
-        }
-
-        $order = null;
+        DB::beginTransaction();
 
         try {
-            DB::transaction(function () use ($user, $price, $request, $service, &$order) {
-                // Deduct balance
-                $user->decrement('balance', $price);
+            // Validation rules
+            $rules = [
+                'category' => 'required|integer|min:1|not_in:0',
+                'service' => 'required|integer|min:1|not_in:0',
+                'link' => 'required|url',
+                'quantity' => 'required|integer|min:1',
+                'check' => 'required|accepted',
+            ];
 
-                // Create order
-                $order = new Order();
-                $order->user_id = $user->id;
-                $order->category_id = $request->category;
-                $order->service_id = $request->service;
-                $order->link = $request->link;
-                $order->quantity = $request->quantity;
-                $order->status = Order::STATUS_PROCESSING;
-                $order->price = $price;
-                $order->runs = $request->runs ?? null;
-                $order->interval = $request->interval ?? null;
+            if ($request->has('runs') || $request->has('interval')) {
+                $rules['runs'] = 'required|integer|min:1';
+                $rules['interval'] = 'required|integer|min:1';
+            }
 
-                // Handle API provider
-                if ($service->api_provider_id) {
-                    $apiProvider = ApiProvider::find($service->api_provider_id);
-                    if ($apiProvider) {
-                        $postData = [
-                            'key' => $apiProvider->api_key,
-                            'action' => 'add',
-                            'service' => $service->api_service_id,
-                            'link' => $request->link,
-                            'quantity' => $request->quantity,
-                        ];
+            $validator = Validator::make($request->all(), $rules);
+            if ($validator->fails()) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => $validator->errors()->first()
+                ], 422);
+            }
 
-                        if ($request->has('runs')) $postData['runs'] = $request->runs;
-                        if ($request->has('interval')) $postData['interval'] = $request->interval;
+            $user = Auth::user();
 
-                        try {
-                            $response = Http::asForm()->post($apiProvider->url, $postData);
-                            $apiData = $response->json();
+            // 1. Check if user is active/verified
+            if ($user->status !== 'active') {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Your account is not active. Please contact support.'
+                ], 403);
+            }
 
-                            if (isset($apiData['order'])) {
-                                $order->status_description = "order: {$apiData['order']}";
-                                $order->api_order_id = $apiData['order'];
-                            } else {
-                                $order->status_description = "error: {$apiData['error']}";
-                                $order->status = Order::STATUS_CANCELLED;
+            // 2. Check for duplicate active order
+            $activeStatuses = ['pending', 'processing', 'inprogress'];
+            $duplicateOrder = Order::where('user_id', $user->id)
+                ->where('service_id', $request->service)
+                ->where('link', $request->link)
+                ->whereIn('status', $activeStatuses)
+                ->first();
 
-                                // Refund user if API fails
-                                $user->increment('balance', $price);
-                            }
-                        } catch (\Exception $e) {
-                            $order->status_description = "error: API connection failed";
-                            $order->status = Order::STATUS_CANCELLED;
+            if ($duplicateOrder) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'You have active order with this link. Please wait until order being completed.'
+                ], 422);
+            }
 
-                            // Refund user if API fails
-                            $user->increment('balance', $price);
-                        }
-                    }
+            // 3. Check if service exists and is active
+            $service = Service::userRate()->where('id', $request->service)
+                ->where('status', 1) // Active service
+                ->first();
+
+            if (!$service) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Service not found or currently unavailable.'
+                ], 404);
+            }
+
+            // 4. Validate quantity against service limits
+            $quantity = $request->quantity;
+            if ($service->drip_feed == 1 && $request->has('runs')) {
+                $quantity = $request->quantity * $request->runs;
+            }
+
+            if ($quantity < $service->min_amount) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Minimum quantity for this service is {$service->min_amount}"
+                ], 422);
+            }
+
+            if ($quantity > $service->max_amount) {
+                DB::rollBack();
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Maximum quantity for this service is {$service->max_amount}"
+                ], 422);
+            }
+
+            // 5. Calculate price and check balance
+            $userRate = $service->user_rate ?? $service->price;
+            $price = round(($quantity * $userRate), 2);
+
+            if ($user->balance < $price) {
+                DB::rollBack();
+                $needed = $price - $user->balance;
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Insufficient balance. You need \${$needed} more to place this order.",
+                    'required_amount' => $price,
+                    'current_balance' => $user->balance,
+                    'shortfall' => $needed
+                ], 400);
+            }
+
+            // 6. Check if API provider is available (if service uses API)
+            if ($service->api_provider_id) {
+                $apiProvider = ApiProvider::where('id', $service->api_provider_id)
+                    ->where('status', 1)
+                    ->first();
+
+                if (!$apiProvider) {
+                    DB::rollBack();
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Service provider is currently unavailable. Please try again later.'
+                    ], 503);
                 }
+            }
 
-                $order->save();
+            // 7. Deduct balance
+            $user->decrement('balance', $price);
 
-                Transaction::create([
-                    'user_id' => $user->id,
-                    'transaction_id' => str()->random(20),
-                    'transaction_type' => 'Debit',
-                    'amount' => $price,
-                    'charge' => 0,
-                    'description' => 'Place order',
-                    'status' => $order->status == Order::STATUS_CANCELLED ? 'refunded' : 'completed',
-                    'meta' => null,
-                ]);
+            // 8. Create order
+            $order = new Order();
+            $order->user_id = $user->id;
+            $order->category_id = $request->category;
+            $order->service_id = $request->service;
+            $order->link = $request->link;
+            $order->quantity = $request->quantity;
+            $order->status = Order::STATUS_PROCESSING;
+            $order->price = $price;
+            $order->runs = $request->runs ?? null;
+            $order->interval = $request->interval ?? null;
+            $order->drip_feed = $service->drip_feed;
 
+            // 9. Process with API provider if applicable
+            if ($service->api_provider_id && $apiProvider) {
+                $postData = [
+                    'key' => $apiProvider->api_key,
+                    'action' => 'add',
+                    'service' => $service->api_service_id,
+                    'link' => $request->link,
+                    'quantity' => $request->quantity,
+                ];
+
+                if ($request->has('runs')) $postData['runs'] = $request->runs;
+                if ($request->has('interval')) $postData['interval'] = $request->interval;
+
+                try {
+                    $response = Http::timeout(30)->asForm()->post($apiProvider->url, $postData);
+                    $apiData = $response->json();
+
+                    if (isset($apiData['order'])) {
+                        $order->status_description = "order: {$apiData['order']}";
+                        $order->api_order_id = $apiData['order'];
+                    } else {
+                        // API returned error
+                        $apiError = $apiData['error'] ?? 'Unknown API error';
+                        $order->status_description = "error: {$apiError}";
+                        $order->status = Order::STATUS_CANCELLED;
+
+                        // Refund user for API failure
+                        $user->increment('balance', $price);
+
+                        DB::commit();
+
+                        return response()->json([
+                            'status' => 'error',
+                            'message' => "Service provider error: {$apiError}"
+                        ], 422);
+                    }
+                } catch (\Exception $e) {
+                    // API connection failed
+                    $order->status_description = "error: API connection failed - " . $e->getMessage();
+                    $order->status = Order::STATUS_CANCELLED;
+
+                    // Refund user for API connection failure
+                    $user->increment('balance', $price);
+
+                    DB::commit();
+
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'Service provider is temporarily unavailable. Please try again later.'
+                    ], 503);
+                }
+            }
+
+            $order->save();
+
+            // 10. Create transaction record
+            Transaction::create([
+                'user_id' => $user->id,
+                'transaction_id' => 'ORD_' . time() . '_' . str()->random(10),
+                'transaction_type' => 'Debit',
+                'amount' => $price,
+                'charge' => 0,
+                'description' => "Order #{$order->id} - {$service->service_title}",
+                'status' => $order->status == Order::STATUS_CANCELLED ? 'refunded' : 'completed',
+                'meta' => json_encode([
+                    'order_id' => $order->id,
+                    'service_id' => $service->id,
+                    'service_name' => $service->service_title,
+                    'quantity' => $request->quantity,
+                    'link' => $request->link
+                ]),
+            ]);
+
+            // 11. Send notification for successful order
+            if ($order->status !== Order::STATUS_CANCELLED) {
                 CreateGeneralNotificationJob::dispatch([
                     'user_id' => $user->id,
                     'type' => 'order',
                     'title' => 'Order Placed Successfully',
                     'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
                 ]);
-            });
+            }
 
-            // Refresh user AFTER transaction to get updated balance
+            DB::commit();
+
             $user->refresh();
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Order submitted successfully',
                 'order_id' => $order->id,
-                'balance' => $user->balance
+                'balance' => $user->balance,
+                'order_status' => $order->status,
+                'charged_amount' => $price
             ]);
         } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Order creation failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to place order: ' . $e->getMessage()
+                'message' => 'System error occurred. Please try again or contact support if problem persists.'
             ], 500);
         }
     }

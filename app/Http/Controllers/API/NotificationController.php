@@ -1,10 +1,11 @@
 <?php
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Models\GeneralNotification;
 
 class NotificationController extends Controller
@@ -12,21 +13,38 @@ class NotificationController extends Controller
     /**
      * Display a list of user notifications
      */
-   public function index()
+    public function index()
     {
         try {
-            $notifications = GeneralNotification::where('user_id', Auth::id())
+            $userId = Auth::id();
+            
+            if (!$userId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated',
+                    'data' => []
+                ], 401);
+            }
+
+            $notifications = GeneralNotification::where('user_id', $userId)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
             return response()->json([
                 'status' => 'success',
-                'data' => $notifications
+                'data' => $notifications,
+                'unread_count' => $notifications->where('is_read', false)->count()
             ]);
         } catch (\Exception $e) {
+            Log::error('Failed to fetch notifications: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'user_id' => Auth::id()
+            ]);
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch notifications'
+                'message' => 'Failed to fetch notifications',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'data' => []
             ], 500);
         }
     }
@@ -36,13 +54,29 @@ class NotificationController extends Controller
      */
     public function markAsRead($id)
     {
-        $notification = GeneralNotification::where('user_id', Auth::id())->findOrFail($id);
-        $notification->update(['is_read' => true]);
+        try {
+            $userId = Auth::id();
+            if (!$userId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Notification marked as read.'
-        ]);
+            $notification = GeneralNotification::where('user_id', $userId)->findOrFail($id);
+            $notification->update(['is_read' => true]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Notification marked as read.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to mark notification as read: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to mark notification as read'
+            ], 500);
+        }
     }
 
     /**
@@ -50,12 +84,28 @@ class NotificationController extends Controller
      */
     public function markAllAsRead()
     {
-        GeneralNotification::where('user_id', Auth::id())->update(['is_read' => true]);
+        try {
+            $userId = Auth::id();
+            if (!$userId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'All notifications marked as read.'
-        ]);
+            GeneralNotification::where('user_id', $userId)->update(['is_read' => true]);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'All notifications marked as read.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to mark all notifications as read: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to mark all notifications as read'
+            ], 500);
+        }
     }
 
     /**
@@ -63,13 +113,29 @@ class NotificationController extends Controller
      */
     public function destroy($id)
     {
-        $notification = GeneralNotification::where('user_id', Auth::id())->findOrFail($id);
-        $notification->delete();
+        try {
+            $userId = Auth::id();
+            if (!$userId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Notification deleted successfully.'
-        ]);
+            $notification = GeneralNotification::where('user_id', $userId)->findOrFail($id);
+            $notification->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Notification deleted successfully.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to delete notification: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to delete notification'
+            ], 500);
+        }
     }
 
     /**
@@ -77,11 +143,27 @@ class NotificationController extends Controller
      */
     public function clearAll()
     {
-        GeneralNotification::where('user_id', Auth::id())->delete();
+        try {
+            $userId = Auth::id();
+            if (!$userId) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'All notifications cleared.'
-        ]);
+            GeneralNotification::where('user_id', $userId)->delete();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'All notifications cleared.'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Failed to clear all notifications: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to clear all notifications'
+            ], 500);
+        }
     }
 }
