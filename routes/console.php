@@ -49,3 +49,8 @@ Schedule::command('database:cleanup')
     ->dailyAt('02:00')
     ->withoutOverlapping()
     ->appendOutputTo(storage_path('logs/cron-cleanup.log'));
+
+Schedule::command('tickets:auto-close')
+    ->dailyAt('03:00')
+    ->withoutOverlapping()
+    ->appendOutputTo(storage_path('logs/cron-tickets-close.log'));

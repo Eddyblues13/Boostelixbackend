@@ -62,11 +62,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store']);
     Route::get('/orders/history', [OrderController::class, 'history']);
 
-    // Ticket endpoint
+    // Ticket endpoints
     Route::post('/tickets', [TicketController::class, 'store']);
-
-    // Ticket History endpoint
-    Route::get('/ticketshistory', [TicketController::class, 'index']);
+    Route::get('/tickets', [TicketController::class, 'index']);
+    Route::get('/tickets/{id}', [TicketController::class, 'show']);
+    Route::post('/tickets/{id}/reply', [TicketController::class, 'reply']);
 
 
     Route::get('/notifications', [NotificationController::class, 'index']);
@@ -191,7 +191,9 @@ Route::prefix('admin')->group(function () {
         Route::get('/settings/activity', [AdminSettingsController::class, 'getActivityLogs']);
 
         // Category management
+        Route::get('/categories', [ManageCategoryController::class, 'index']);
         Route::post('/categories', [ManageCategoryController::class, 'store']);
+        Route::get('/categories/{id}', [ManageCategoryController::class, 'show']);
         Route::put('/categories/{id}', [ManageCategoryController::class, 'update']);
         Route::delete('/categories/{id}', [ManageCategoryController::class, 'destroy']);
         Route::post('/categories/{id}/activate', [ManageCategoryController::class, 'activate']);
@@ -229,10 +231,12 @@ Route::prefix('admin')->group(function () {
         });
 
 
-        // Manageusertickets
+        // Manage tickets
         Route::get('/tickets', [ManageTicketController::class, 'index']);
         Route::get('/tickets/{id}', [ManageTicketController::class, 'show']);
         Route::put('/tickets/{id}/status', [ManageTicketController::class, 'updateStatus']);
+        Route::put('/tickets/{id}/priority', [ManageTicketController::class, 'updatePriority']);
+        Route::post('/tickets/{id}/reply', [ManageTicketController::class, 'reply']);
         Route::delete('/tickets/{id}', [ManageTicketController::class, 'destroy']);
 
         // Manage Service Controller
@@ -267,11 +271,18 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
     // User management
     Route::get('/', [ManageUserController::class, 'index']);
     Route::get('/{id}', [ManageUserController::class, 'show']);
+    Route::put('/{id}', [ManageUserController::class, 'update']);
+    Route::delete('/{id}', [ManageUserController::class, 'destroy']);
     Route::post('/{id}/send-email', [ManageUserController::class, 'sendEmail']);
     Route::post('/balance-adjust', [ManageUserController::class, 'adjust']);
     Route::get('/{id}/orders', [ManageUserController::class, 'getUserOrders']);
     Route::post('/{id}/adjust-balance', [ManageUserController::class, 'adjustBalance']);
     Route::post('/{id}/custom-rate', [ManageUserController::class, 'setCustomRate']);
+    Route::post('/{id}/activate', [ManageUserController::class, 'activate']);
+    Route::post('/{id}/deactivate', [ManageUserController::class, 'deactivate']);
+    Route::patch('/{id}/status', [ManageUserController::class, 'changeStatus']);
+    Route::post('/{id}/generate-api-key', [ManageUserController::class, 'generateApiKey']);
+    Route::post('/{id}/login-as-user', [ManageUserController::class, 'loginAsUser']);
 
 
     // Order management
@@ -285,6 +296,10 @@ Route::prefix('admin/users')->middleware(['auth:sanctum', 'admin.token'])->group
 
     // Transaction management
     Route::get('/transactions', [ManageTransactionsController::class, 'getAllTransactions']);
+    Route::get('/transactions/{id}', [ManageTransactionsController::class, 'getTransaction']);
+    Route::put('/transactions/{id}', [ManageTransactionsController::class, 'updateTransaction']);
+    Route::delete('/transactions/{id}', [ManageTransactionsController::class, 'deleteTransaction']);
+    Route::patch('/transactions/{id}/status', [ManageTransactionsController::class, 'changeStatus']);
     Route::get('/{id}/transactions', [ManageTransactionsController::class, 'getUserTransactions']);
     Route::post('/{id}/transactions', [ManageUserController::class, 'createUserTransaction']);
     Route::put('/{userId}/transactions/{transactionId}', [ManageUserController::class, 'updateUserTransaction']);

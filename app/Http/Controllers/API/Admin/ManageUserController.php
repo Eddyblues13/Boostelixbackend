@@ -913,4 +913,32 @@ class ManageUserController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Delete a user.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function destroy($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+            
+            // Soft delete or hard delete based on your needs
+            // For now, we'll just delete the user
+            $user->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'User deleted successfully'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to delete user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

@@ -17,13 +17,30 @@ class Ticket extends Model
         'ticket',
         'subject',
         'status',
+        'priority',
         'last_reply',
+    ];
+
+    protected $casts = [
+        'status' => 'integer',
+        'priority' => 'integer',
+        'last_reply' => 'datetime',
     ];
 
     // Relationships
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function replies()
+    {
+        return $this->hasMany(TicketReply::class)->orderBy('created_at', 'asc');
+    }
+
+    public function publicReplies()
+    {
+        return $this->hasMany(TicketReply::class)->where('is_internal', false)->orderBy('created_at', 'asc');
     }
 
     // Status helpers
@@ -37,7 +54,7 @@ class Ticket extends Model
         return $this->status === 1;
     }
 
-    public function isReplied()
+    public function isInProgress()
     {
         return $this->status === 2;
     }
@@ -45,5 +62,26 @@ class Ticket extends Model
     public function isClosed()
     {
         return $this->status === 3;
+    }
+
+    public function getStatusTextAttribute()
+    {
+        return match($this->status) {
+            0 => 'Pending',
+            1 => 'Answered',
+            2 => 'In Progress',
+            3 => 'Closed',
+            default => 'Unknown',
+        };
+    }
+
+    public function getPriorityTextAttribute()
+    {
+        return match($this->priority ?? 1) {
+            1 => 'Low',
+            2 => 'Medium',
+            3 => 'High',
+            default => 'Low',
+        };
     }
 }
