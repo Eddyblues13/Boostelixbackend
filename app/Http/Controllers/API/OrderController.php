@@ -237,7 +237,7 @@ class OrderController extends Controller
                     'user_id' => $user->id,
                     'type' => 'order',
                     'title' => 'Order Placed Successfully',
-                    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: $$price.",
+                    'message' => "Your order #{$order->id} for {$service->service_title} has been placed successfully. Amount charged: \${$price}.",
                 ]);
             }
 
