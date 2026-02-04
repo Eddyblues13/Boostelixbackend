@@ -233,7 +233,7 @@ class OrderController extends Controller
 
             // 11. Send notification for successful order
             if ($order->status !== Order::STATUS_CANCELLED) {
-                CreateGeneralNotificationJob::dispatch([
+                CreateGeneralNotificationJob::dispatchSync([
                     'user_id' => $user->id,
                     'type' => 'order',
                     'title' => 'Order Placed Successfully',
